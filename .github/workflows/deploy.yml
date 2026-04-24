@@ -26,7 +26,9 @@ jobs:
           cache: gradle
 
       - name: Run tests
-        run: ./gradlew test --no-daemon
+        run: |
+          chmod +x gradlew
+          ./gradlew test --no-daemon
 
   # ── 2. 빌드 & 배포 (main 브랜치 push 시에만) ───────────────────
   deploy:
