@@ -4,6 +4,7 @@ import com.bandmate.band.dto.*;
 import com.bandmate.band.service.BandService;
 import com.bandmate.common.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,7 +20,7 @@ public class BandController {
 
     @PostMapping
     public ResponseEntity<BandResponse> createBand(
-            @RequestBody CreateBandRequest request,
+            @RequestBody @Valid CreateBandRequest request,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7)); // "Bearer " 제거
         BandResponse response = bandService.createBand(request, userId);
@@ -43,7 +44,7 @@ public class BandController {
     @PostMapping("/{bandId}/recruits")
     public ResponseEntity<RecruitResponse> createRecruit(
             @PathVariable Long bandId,
-            @RequestBody CreateRecruitRequest request,
+            @RequestBody @Valid CreateRecruitRequest request,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
         request.setBandId(bandId);
@@ -54,7 +55,7 @@ public class BandController {
     @PostMapping("/{bandId}/apply")
     public ResponseEntity<ApplicationResponse> applyBand(
             @PathVariable Long bandId,
-            @RequestBody ApplyBandRequest request,
+            @RequestBody @Valid ApplyBandRequest request,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
         ApplicationResponse response = bandService.applyBand(bandId, request, userId);
@@ -79,6 +80,15 @@ public class BandController {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
         ApplicationResponse response = bandService.rejectApplication(bandId, applicationId, userId);
         return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{bandId}")
+    public ResponseEntity<Void> deleteBand(
+            @PathVariable Long bandId,
+            @RequestHeader("Authorization") String token) {
+        Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        bandService.deleteBand(bandId, userId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{bandId}/applications")

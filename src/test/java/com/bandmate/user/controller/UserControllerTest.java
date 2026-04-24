@@ -40,6 +40,7 @@ class UserControllerTest {
         SignupRequest request = new SignupRequest();
         request.setEmail("newuser@test.com");
         request.setPassword("password123");
+        request.setNickname("테스터");
         String content = objectMapper.writeValueAsString(request);
 
         // when & then

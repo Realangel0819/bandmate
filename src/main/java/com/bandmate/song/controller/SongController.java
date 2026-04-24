@@ -1,10 +1,13 @@
 package com.bandmate.song.controller;
 
 import com.bandmate.band.repository.BandRepository;
+import com.bandmate.common.exception.NotFoundException;
+import com.bandmate.common.exception.UnauthorizedException;
 import com.bandmate.common.util.JwtUtil;
 import com.bandmate.song.dto.*;
 import com.bandmate.song.entity.Song;
 import com.bandmate.song.service.SongService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +24,7 @@ public class SongController {
     private final BandRepository bandRepository;
 
     @PostMapping
-    public ResponseEntity<Song> createSong(@RequestBody CreateSongRequest request) {
+    public ResponseEntity<Song> createSong(@RequestBody @Valid CreateSongRequest request) {
         Song song = songService.createSong(request);
         return ResponseEntity.ok(song);
     }
@@ -29,15 +32,14 @@ public class SongController {
     @PostMapping("/candidates")
     public ResponseEntity<BandSongResponse> addSongCandidate(
             @PathVariable Long bandId,
-            @RequestBody AddSongCandidateRequest request,
+            @RequestBody @Valid AddSongCandidateRequest request,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
-        
-        // 리더 확인
+
         var band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new RuntimeException("밴드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
         if (!band.getLeaderId().equals(userId)) {
-            throw new RuntimeException("리더만 곡을 추가할 수 있습니다.");
+            throw new UnauthorizedException("리더만 곡을 추가할 수 있습니다.");
         }
 
         BandSongResponse response = songService.addSongCandidate(bandId, request, userId);
@@ -47,7 +49,7 @@ public class SongController {
     @PostMapping("/vote")
     public ResponseEntity<VoteResponse> vote(
             @PathVariable Long bandId,
-            @RequestBody VoteRequest request,
+            @RequestBody @Valid VoteRequest request,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
         VoteResponse response = songService.vote(bandId, request, userId);
@@ -60,12 +62,11 @@ public class SongController {
             @PathVariable Long bandSongId,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
-        
-        // 리더 확인
+
         var band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new RuntimeException("밴드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
         if (!band.getLeaderId().equals(userId)) {
-            throw new RuntimeException("리더만 곡을 선정할 수 있습니다.");
+            throw new UnauthorizedException("리더만 곡을 선정할 수 있습니다.");
         }
 
         BandSongResponse response = songService.selectWinningSong(bandId, bandSongId);
@@ -74,19 +75,16 @@ public class SongController {
 
     @GetMapping
     public ResponseEntity<List<BandSongResponse>> getBandSongs(@PathVariable Long bandId) {
-        List<BandSongResponse> responses = songService.getBandSongs(bandId);
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(songService.getBandSongs(bandId));
     }
 
     @GetMapping("/active")
     public ResponseEntity<List<BandSongResponse>> getActiveCandidates(@PathVariable Long bandId) {
-        List<BandSongResponse> responses = songService.getActiveCandidates(bandId);
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(songService.getActiveCandidates(bandId));
     }
 
     @GetMapping("/selected")
     public ResponseEntity<BandSongResponse> getSelectedSong(@PathVariable Long bandId) {
-        BandSongResponse response = songService.getSelectedSong(bandId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(songService.getSelectedSong(bandId));
     }
 }

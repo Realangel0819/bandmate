@@ -1,0 +1,35 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: bandmatedb
+      MYSQL_USER: bandmate
+      MYSQL_PASSWORD: bandmate123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USERNAME: bandmate
+      DB_PASSWORD: bandmate123
+      JWT_SECRET: local-dev-jwt-secret-key-must-be-at-least-32-chars
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mysql-data:

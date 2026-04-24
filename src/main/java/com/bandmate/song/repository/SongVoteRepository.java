@@ -11,4 +11,5 @@ public interface SongVoteRepository extends JpaRepository<SongVote, Long> {
     Optional<SongVote> findByBandSongIdAndUserId(Long bandSongId, Long userId);
     int countByBandSongId(Long bandSongId);
     int countByBandIdAndUserId(Long bandId, Long userId);
+    int countByBandId(Long bandId);
 }

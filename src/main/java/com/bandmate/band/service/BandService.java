@@ -3,6 +3,10 @@ package com.bandmate.band.service;
 import com.bandmate.band.dto.*;
 import com.bandmate.band.entity.*;
 import com.bandmate.band.repository.*;
+import com.bandmate.common.exception.DuplicateException;
+import com.bandmate.common.exception.InvalidRequestException;
+import com.bandmate.common.exception.NotFoundException;
+import com.bandmate.common.exception.UnauthorizedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,7 +55,7 @@ public class BandService {
     // 밴드 조회
     public BandResponse getBand(Long bandId) {
         Band band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new RuntimeException("밴드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
         int memberCount = bandMemberRepository.countByBandId(bandId);
 
@@ -82,16 +86,12 @@ public class BandService {
     // 모집 정보 추가
     public RecruitResponse createRecruit(CreateRecruitRequest request, Long leaderId) {
         Band band = bandRepository.findById(request.getBandId())
-                .orElseThrow(() -> new RuntimeException("밴드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
         // 리더 확인
         if (!band.getLeaderId().equals(leaderId)) {
-            throw new RuntimeException("리더만 모집 정보를 추가할 수 있습니다.");
+            throw new UnauthorizedException("리더만 모집 정보를 추가할 수 있습니다.");
         }
-
-        // 같은 포지션 중복 확인
-        bandRecruitRepository.findByBandIdAndPosition(request.getBandId(), request.getPosition())
-                .ifPresent(r -> { throw new RuntimeException("이미 해당 포지션의 모집이 진행 중입니다."); });
 
         BandRecruit recruit = BandRecruit.builder()
                 .bandId(request.getBandId())
@@ -114,23 +114,23 @@ public class BandService {
     // 지원
     public ApplicationResponse applyBand(Long bandId, ApplyBandRequest request, Long userId) {
         Band band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new RuntimeException("밴드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
         BandRecruit recruit = bandRecruitRepository.findById(request.getRecruitId())
-                .orElseThrow(() -> new RuntimeException("모집 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("모집 정보를 찾을 수 없습니다."));
 
         // 정원 초과 확인
         if (recruit.getCurrentCount() >= recruit.getRequiredCount()) {
-            throw new RuntimeException("해당 포지션의 정원이 다 찼습니다.");
+            throw new InvalidRequestException("해당 포지션의 정원이 다 찼습니다.");
         }
 
         // 중복 지원 확인
         bandApplicationRepository.findByBandIdAndUserId(bandId, userId)
-                .ifPresent(app -> { throw new RuntimeException("이미 이 밴드에 지원했습니다."); });
+                .ifPresent(app -> { throw new DuplicateException("이미 이 밴드에 지원했습니다."); });
 
         // 이미 멤버인 경우 확인
         bandMemberRepository.findByBandIdAndUserId(bandId, userId)
-                .ifPresent(member -> { throw new RuntimeException("이미 이 밴드의 멤버입니다."); });
+                .ifPresent(member -> { throw new DuplicateException("이미 이 밴드의 멤버입니다."); });
 
         BandApplication application = BandApplication.builder()
                 .bandId(bandId)
@@ -155,22 +155,22 @@ public class BandService {
     // 지원 승인
     public ApplicationResponse approveApplication(Long bandId, Long applicationId, Long leaderId) {
         Band band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new RuntimeException("밴드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
         // 리더 확인
         if (!band.getLeaderId().equals(leaderId)) {
-            throw new RuntimeException("리더만 지원을 승인할 수 있습니다.");
+            throw new UnauthorizedException("리더만 지원을 승인할 수 있습니다.");
         }
 
         BandApplication application = bandApplicationRepository.findById(applicationId)
-                .orElseThrow(() -> new RuntimeException("지원 신청을 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("지원 신청을 찾을 수 없습니다."));
 
         BandRecruit recruit = bandRecruitRepository.findById(application.getRecruitId())
-                .orElseThrow(() -> new RuntimeException("모집 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("모집 정보를 찾을 수 없습니다."));
 
         // 정원 초과 확인
         if (recruit.getCurrentCount() >= recruit.getRequiredCount()) {
-            throw new RuntimeException("해당 포지션의 정원이 다 찼습니다.");
+            throw new InvalidRequestException("해당 포지션의 정원이 다 찼습니다.");
         }
 
         application.setStatus(BandApplication.ApplicationStatus.APPROVED);
@@ -201,15 +201,15 @@ public class BandService {
     // 지원 거절
     public ApplicationResponse rejectApplication(Long bandId, Long applicationId, Long leaderId) {
         Band band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new RuntimeException("밴드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
         // 리더 확인
         if (!band.getLeaderId().equals(leaderId)) {
-            throw new RuntimeException("리더만 지원을 거절할 수 있습니다.");
+            throw new UnauthorizedException("리더만 지원을 거절할 수 있습니다.");
         }
 
         BandApplication application = bandApplicationRepository.findById(applicationId)
-                .orElseThrow(() -> new RuntimeException("지원 신청을 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("지원 신청을 찾을 수 없습니다."));
 
         application.setStatus(BandApplication.ApplicationStatus.REJECTED);
         bandApplicationRepository.save(application);
@@ -224,14 +224,27 @@ public class BandService {
         );
     }
 
+    // 밴드 삭제 (soft delete)
+    public void deleteBand(Long bandId, Long leaderId) {
+        Band band = bandRepository.findById(bandId)
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
+
+        if (!band.getLeaderId().equals(leaderId)) {
+            throw new UnauthorizedException("리더만 밴드를 삭제할 수 있습니다.");
+        }
+
+        band.softDelete();
+        bandRepository.save(band);
+    }
+
     // 밴드의 모든 지원 조회
     public List<ApplicationResponse> getBandApplications(Long bandId, Long leaderId) {
         Band band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new RuntimeException("밴드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
         // 리더 확인
         if (!band.getLeaderId().equals(leaderId)) {
-            throw new RuntimeException("리더만 지원 목록을 조회할 수 있습니다.");
+            throw new UnauthorizedException("리더만 지원 목록을 조회할 수 있습니다.");
         }
 
         return bandApplicationRepository.findByBandId(bandId).stream()

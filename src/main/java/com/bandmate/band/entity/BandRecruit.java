@@ -5,12 +5,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "band_recruit")
+@Table(
+    name = "band_recruit",
+    indexes = @Index(name = "idx_band_recruit_band_id", columnList = "band_id")
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -21,8 +25,13 @@ public class BandRecruit {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "band_id", nullable = false)
     private Long bandId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "band_id", insertable = false, updatable = false)
+    @ToString.Exclude
+    private Band band;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -1,5 +1,7 @@
 package com.bandmate.user.service;
 
+import com.bandmate.common.exception.DuplicateException;
+import com.bandmate.common.exception.InvalidRequestException;
 import com.bandmate.user.dto.LoginRequest;
 import com.bandmate.user.dto.LoginResponse;
 import com.bandmate.user.dto.SignupRequest;
@@ -21,7 +23,7 @@ public class UserService {
     public Long signup(SignupRequest request) {
         // 이메일 중복 확인
         userRepository.findByEmail(request.getEmail())
-                .ifPresent(u -> { throw new RuntimeException("이미 존재하는 이메일입니다."); });
+                .ifPresent(u -> { throw new DuplicateException("이미 존재하는 이메일입니다."); });
 
         User user = User.builder()
                 .email(request.getEmail())
@@ -34,10 +36,10 @@ public class UserService {
 
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("이메일 또는 비밀번호가 올바르지 않습니다."));
+                .orElseThrow(() -> new InvalidRequestException("이메일 또는 비밀번호가 올바르지 않습니다."));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("이메일 또는 비밀번호가 올바르지 않습니다.");
+            throw new InvalidRequestException("이메일 또는 비밀번호가 올바르지 않습니다.");
         }
 
         return new LoginResponse(null, user.getId(), user.getEmail(), user.getNickname());

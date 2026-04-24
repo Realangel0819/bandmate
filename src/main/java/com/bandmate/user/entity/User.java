@@ -6,7 +6,10 @@ import lombok.*;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "users")
+@Table(
+    name = "users",
+    uniqueConstraints = @UniqueConstraint(name = "uk_users_nickname", columnNames = "nickname")
+)
 public class User {
 
     @Id
