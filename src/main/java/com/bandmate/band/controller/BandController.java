@@ -40,7 +40,17 @@ public class BandController {
     public ResponseEntity<List<BandResponse>> getMyBands(
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
-        return ResponseEntity.ok(bandService.getLeaderBands(userId));
+        return ResponseEntity.ok(bandService.getMyBands(userId));
+    }
+
+    @DeleteMapping("/{bandId}/members/{memberId}")
+    public ResponseEntity<Void> removeMember(
+            @PathVariable Long bandId,
+            @PathVariable Long memberId,
+            @RequestHeader("Authorization") String token) {
+        Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        bandService.removeMember(bandId, memberId, userId);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{bandId}/vote-settings")

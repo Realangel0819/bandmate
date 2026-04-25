@@ -4,6 +4,7 @@ import {
   getBandRecruits,
   getBandApplications,
   getBandMembers,
+  removeMember,
   approveApplication,
   rejectApplication,
   createRecruit,
@@ -31,10 +32,11 @@ const statusColor: Record<string, string> = {
 interface Props {
   bandId: number;
   isLeader: boolean;
+  leaderId: number;
 }
 
-export default function MembersTab({ bandId, isLeader }: Props) {
-  const { isLoggedIn } = useAuthStore();
+export default function MembersTab({ bandId, isLeader, leaderId }: Props) {
+  const { isLoggedIn, userId } = useAuthStore();
   const queryClient = useQueryClient();
 
   const [showRecruitForm, setShowRecruitForm] = useState(false);
@@ -94,6 +96,12 @@ export default function MembersTab({ bandId, isLeader }: Props) {
     onError: (e: Error) => alert(e.message),
   });
 
+  const removeMemberMutation = useMutation({
+    mutationFn: (memberId: number) => removeMember(bandId, memberId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bandMembers', bandId] }),
+    onError: (e: Error) => alert(e.message),
+  });
+
   return (
     <div className="space-y-4">
       {/* 현재 멤버 */}
@@ -103,14 +111,34 @@ export default function MembersTab({ bandId, isLeader }: Props) {
           <p className="text-sm text-gray-400 text-center py-4">불러오는 중...</p>
         ) : members && members.length > 0 ? (
           <ul className="space-y-2">
-            {members.map((m) => (
-              <li key={m.memberId} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
-                <div>
-                  <span className="font-medium text-sm">{m.nickname}</span>
-                  <span className="text-xs text-gray-400 ml-2">{positionLabel[m.position] ?? m.position}</span>
-                </div>
-              </li>
-            ))}
+            {members.map((m) => {
+              const isThisLeader = m.userId === leaderId;
+              const canKick = isLeader && !isThisLeader;
+              const canLeave = !isLeader && m.userId === userId;
+              return (
+                <li key={m.memberId} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
+                  <div>
+                    <span className="font-medium text-sm">{m.nickname}</span>
+                    <span className="text-xs text-gray-400 ml-2">{positionLabel[m.position] ?? m.position}</span>
+                    {isThisLeader && (
+                      <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full ml-2">리더</span>
+                    )}
+                  </div>
+                  {(canKick || canLeave) && (
+                    <button
+                      onClick={() => {
+                        const msg = canKick ? `"${m.nickname}"을(를) 강퇴하시겠습니까?` : '밴드에서 탈퇴하시겠습니까?';
+                        if (confirm(msg)) removeMemberMutation.mutate(m.memberId);
+                      }}
+                      disabled={removeMemberMutation.isPending}
+                      className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
+                    >
+                      {canKick ? '강퇴' : '탈퇴'}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="text-sm text-gray-400 text-center py-4">멤버가 없습니다.</p>

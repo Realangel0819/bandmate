@@ -88,7 +88,7 @@ export default function BandDetailPage() {
 
       {/* 탭 컨텐츠 */}
       {activeTab === '멤버 관리' && (
-        <MembersTab bandId={id} isLeader={isLeader} />
+        <MembersTab bandId={id} isLeader={isLeader} leaderId={band.leaderId} />
       )}
       {activeTab === '곡 목록' && (
         <SongsTab bandId={id} isLeader={isLeader} maxVotesPerPerson={band.maxVotesPerPerson ?? 1} />

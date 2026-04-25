@@ -149,31 +149,40 @@ export default function HomePage() {
 
           {myBands && myBands.length > 0 ? (
             <ul className="space-y-2">
-              {myBands.map((band) => (
-                <li key={band.bandId} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50">
-                  <Link
-                    to={`/bands/${band.bandId}`}
-                    className="flex-1 font-medium text-gray-900 hover:text-purple-600"
-                  >
-                    {band.name}
-                    <span className="text-xs text-gray-400 ml-2">#{band.bandId}</span>
-                    <span className="text-xs text-purple-500 ml-1">리더</span>
-                  </Link>
-                  <button
-                    onClick={() => {
-                      if (confirm(`"${band.name}" 밴드를 삭제하시겠습니까?`)) {
-                        deleteMutation.mutate(band.bandId);
-                      }
-                    }}
-                    className="text-xs text-red-400 hover:text-red-600 ml-4"
-                  >
-                    삭제
-                  </button>
-                </li>
-              ))}
+              {myBands.map((band) => {
+                const isBandLeader = band.leaderId === userId;
+                return (
+                  <li key={band.bandId} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50">
+                    <Link
+                      to={`/bands/${band.bandId}`}
+                      className="flex-1 font-medium text-gray-900 hover:text-purple-600"
+                    >
+                      {band.name}
+                      <span className="text-xs text-gray-400 ml-2">#{band.bandId}</span>
+                      {isBandLeader ? (
+                        <span className="text-xs text-purple-500 ml-1">리더</span>
+                      ) : (
+                        <span className="text-xs text-green-500 ml-1">멤버</span>
+                      )}
+                    </Link>
+                    {isBandLeader && (
+                      <button
+                        onClick={() => {
+                          if (confirm(`"${band.name}" 밴드를 삭제하시겠습니까?`)) {
+                            deleteMutation.mutate(band.bandId);
+                          }
+                        }}
+                        className="text-xs text-red-400 hover:text-red-600 ml-4"
+                      >
+                        삭제
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-4">아직 생성한 밴드가 없습니다.</p>
+            <p className="text-sm text-gray-400 text-center py-4">가입한 밴드가 없습니다.</p>
           )}
         </div>
       )}

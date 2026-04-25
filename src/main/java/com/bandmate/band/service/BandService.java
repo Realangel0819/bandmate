@@ -89,10 +89,12 @@ public class BandService {
         );
     }
 
-    // 리더의 모든 밴드 조회
+    // 내가 속한 모든 밴드 조회 (리더 + 멤버)
     @Transactional(readOnly = true)
-    public List<BandResponse> getLeaderBands(Long leaderId) {
-        return bandRepository.findByLeaderId(leaderId).stream()
+    public List<BandResponse> getMyBands(Long userId) {
+        return bandMemberRepository.findByUserId(userId).stream()
+                .map(m -> bandRepository.findById(m.getBandId()).orElse(null))
+                .filter(band -> band != null)
                 .map(band -> new BandResponse(
                         band.getId(),
                         band.getName(),
@@ -103,6 +105,33 @@ public class BandService {
                         band.getMaxVotesPerPerson()
                 ))
                 .collect(Collectors.toList());
+    }
+
+    // 멤버 탈퇴 / 강퇴
+    public void removeMember(Long bandId, Long memberId, Long requesterId) {
+        Band band = bandRepository.findById(bandId)
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
+
+        BandMember target = bandMemberRepository.findById(memberId)
+                .orElseThrow(() -> new NotFoundException("멤버를 찾을 수 없습니다."));
+
+        if (!target.getBandId().equals(bandId)) {
+            throw new InvalidRequestException("해당 밴드의 멤버가 아닙니다.");
+        }
+
+        // 리더는 탈퇴 불가 (밴드 삭제로 처리)
+        if (target.getUserId().equals(band.getLeaderId())) {
+            throw new InvalidRequestException("리더는 탈퇴할 수 없습니다. 밴드를 삭제해주세요.");
+        }
+
+        boolean isLeader = band.getLeaderId().equals(requesterId);
+        boolean isSelf = target.getUserId().equals(requesterId);
+
+        if (!isLeader && !isSelf) {
+            throw new UnauthorizedException("권한이 없습니다.");
+        }
+
+        bandMemberRepository.delete(target);
     }
 
     // 투표 설정 업데이트 (리더만)

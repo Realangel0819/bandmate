@@ -53,6 +53,9 @@ export const getMyBands = () =>
 export const getBandMembers = (bandId: number) =>
   client.get<BandMemberResponse[]>(`/bands/${bandId}/members`);
 
+export const removeMember = (bandId: number, memberId: number) =>
+  client.delete(`/bands/${bandId}/members/${memberId}`);
+
 export const deleteBand = (bandId: number) =>
   client.delete(`/bands/${bandId}`);
 
