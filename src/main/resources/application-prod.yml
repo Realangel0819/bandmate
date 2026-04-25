@@ -10,13 +10,17 @@ spring:
       connection-timeout: 30000
   jpa:
     hibernate:
-      # 운영에서는 validate — 스키마는 schema.sql로 관리
       ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
   h2:
     console:
       enabled: false

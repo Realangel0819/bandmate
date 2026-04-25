@@ -1,0 +1,33 @@
+# ================================================================
+# RDS 배포용 Compose — 로컬 MySQL 없이 AWS RDS를 외부 DB로 사용
+# 사용: docker compose -f docker-compose.rds.yml up -d --build
+#
+# 사전 준비:
+#   1. AWS RDS MySQL 8.0 인스턴스 생성 (Free Tier: db.t3.micro)
+#   2. RDS 보안 그룹에서 EC2 보안 그룹의 3306 인바운드 허용
+#   3. .env 파일에 DB_HOST=<RDS 엔드포인트> 설정
+# ================================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: ${DB_HOST}          # RDS 엔드포인트 (예: bandmate.xxxx.ap-northeast-2.rds.amazonaws.com)
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    restart: unless-stopped

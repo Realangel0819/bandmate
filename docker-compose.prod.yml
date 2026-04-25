@@ -8,7 +8,6 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-bandmate123}
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
