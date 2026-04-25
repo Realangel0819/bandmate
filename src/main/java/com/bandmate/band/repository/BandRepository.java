@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface BandRepository extends JpaRepository<Band, Long> {
     List<Band> findByLeaderId(Long leaderId);
+    List<Band> findAllByOrderByCreatedAtDesc();
 }

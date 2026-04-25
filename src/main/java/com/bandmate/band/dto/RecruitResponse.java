@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
 public class RecruitResponse {
-    private Long id;
+    private Long recruitId;
     private Long bandId;
     private Position position;
     private Integer requiredCount;

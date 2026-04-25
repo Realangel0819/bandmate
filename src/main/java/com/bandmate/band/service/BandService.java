@@ -24,6 +24,22 @@ public class BandService {
     private final BandApplicationRepository bandApplicationRepository;
     private final BandMemberRepository bandMemberRepository;
 
+    // 전체 밴드 목록 조회
+    @Transactional(readOnly = true)
+    public List<BandResponse> getAllBands() {
+        return bandRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(band -> new BandResponse(
+                        band.getId(),
+                        band.getName(),
+                        band.getDescription(),
+                        band.getLeaderId(),
+                        bandMemberRepository.countByBandId(band.getId()),
+                        band.getCreatedAt(),
+                        band.getMaxVotesPerPerson()
+                ))
+                .collect(Collectors.toList());
+    }
+
     // 밴드 생성
     public BandResponse createBand(CreateBandRequest request, Long leaderId) {
         Band band = Band.builder()
@@ -33,12 +49,11 @@ public class BandService {
                 .build();
 
         Band savedBand = bandRepository.save(band);
-        
-        // 리더를 밴드 멤버로 추가
+
         BandMember leader = BandMember.builder()
                 .bandId(savedBand.getId())
                 .userId(leaderId)
-                .position(Position.VOCAL) // 기본 포지션
+                .position(Position.VOCAL)
                 .build();
         bandMemberRepository.save(leader);
 
@@ -47,12 +62,14 @@ public class BandService {
                 savedBand.getName(),
                 savedBand.getDescription(),
                 savedBand.getLeaderId(),
-                1, // 리더 1명
-                savedBand.getCreatedAt()
+                1,
+                savedBand.getCreatedAt(),
+                savedBand.getMaxVotesPerPerson()
         );
     }
 
     // 밴드 조회
+    @Transactional(readOnly = true)
     public BandResponse getBand(Long bandId) {
         Band band = bandRepository.findById(bandId)
                 .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
@@ -65,11 +82,13 @@ public class BandService {
                 band.getDescription(),
                 band.getLeaderId(),
                 memberCount,
-                band.getCreatedAt()
+                band.getCreatedAt(),
+                band.getMaxVotesPerPerson()
         );
     }
 
     // 리더의 모든 밴드 조회
+    @Transactional(readOnly = true)
     public List<BandResponse> getLeaderBands(Long leaderId) {
         return bandRepository.findByLeaderId(leaderId).stream()
                 .map(band -> new BandResponse(
@@ -78,9 +97,33 @@ public class BandService {
                         band.getDescription(),
                         band.getLeaderId(),
                         bandMemberRepository.countByBandId(band.getId()),
-                        band.getCreatedAt()
+                        band.getCreatedAt(),
+                        band.getMaxVotesPerPerson()
                 ))
                 .collect(Collectors.toList());
+    }
+
+    // 투표 설정 업데이트 (리더만)
+    public BandResponse updateVoteSettings(Long bandId, UpdateVoteSettingsRequest request, Long leaderId) {
+        Band band = bandRepository.findById(bandId)
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
+
+        if (!band.getLeaderId().equals(leaderId)) {
+            throw new UnauthorizedException("리더만 투표 설정을 변경할 수 있습니다.");
+        }
+
+        band.setMaxVotesPerPerson(request.getMaxVotesPerPerson());
+        Band saved = bandRepository.save(band);
+
+        return new BandResponse(
+                saved.getId(),
+                saved.getName(),
+                saved.getDescription(),
+                saved.getLeaderId(),
+                bandMemberRepository.countByBandId(bandId),
+                saved.getCreatedAt(),
+                saved.getMaxVotesPerPerson()
+        );
     }
 
     // 모집 정보 추가
@@ -88,7 +131,6 @@ public class BandService {
         Band band = bandRepository.findById(request.getBandId())
                 .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
-        // 리더 확인
         if (!band.getLeaderId().equals(leaderId)) {
             throw new UnauthorizedException("리더만 모집 정보를 추가할 수 있습니다.");
         }
@@ -113,22 +155,19 @@ public class BandService {
 
     // 지원
     public ApplicationResponse applyBand(Long bandId, ApplyBandRequest request, Long userId) {
-        Band band = bandRepository.findById(bandId)
+        bandRepository.findById(bandId)
                 .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
         BandRecruit recruit = bandRecruitRepository.findById(request.getRecruitId())
                 .orElseThrow(() -> new NotFoundException("모집 정보를 찾을 수 없습니다."));
 
-        // 정원 초과 확인
         if (recruit.getCurrentCount() >= recruit.getRequiredCount()) {
             throw new InvalidRequestException("해당 포지션의 정원이 다 찼습니다.");
         }
 
-        // 중복 지원 확인
         bandApplicationRepository.findByBandIdAndUserId(bandId, userId)
                 .ifPresent(app -> { throw new DuplicateException("이미 이 밴드에 지원했습니다."); });
 
-        // 이미 멤버인 경우 확인
         bandMemberRepository.findByBandIdAndUserId(bandId, userId)
                 .ifPresent(member -> { throw new DuplicateException("이미 이 밴드의 멤버입니다."); });
 
@@ -137,6 +176,7 @@ public class BandService {
                 .userId(userId)
                 .recruitId(request.getRecruitId())
                 .position(request.getPosition())
+                .introduction(request.getIntroduction())
                 .status(BandApplication.ApplicationStatus.PENDING)
                 .build();
 
@@ -148,6 +188,7 @@ public class BandService {
                 savedApplication.getUserId(),
                 savedApplication.getPosition(),
                 savedApplication.getStatus(),
+                savedApplication.getIntroduction(),
                 savedApplication.getCreatedAt()
         );
     }
@@ -157,7 +198,6 @@ public class BandService {
         Band band = bandRepository.findById(bandId)
                 .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
-        // 리더 확인
         if (!band.getLeaderId().equals(leaderId)) {
             throw new UnauthorizedException("리더만 지원을 승인할 수 있습니다.");
         }
@@ -168,7 +208,6 @@ public class BandService {
         BandRecruit recruit = bandRecruitRepository.findById(application.getRecruitId())
                 .orElseThrow(() -> new NotFoundException("모집 정보를 찾을 수 없습니다."));
 
-        // 정원 초과 확인
         if (recruit.getCurrentCount() >= recruit.getRequiredCount()) {
             throw new InvalidRequestException("해당 포지션의 정원이 다 찼습니다.");
         }
@@ -176,7 +215,6 @@ public class BandService {
         application.setStatus(BandApplication.ApplicationStatus.APPROVED);
         bandApplicationRepository.save(application);
 
-        // 밴드 멤버 추가
         BandMember member = BandMember.builder()
                 .bandId(bandId)
                 .userId(application.getUserId())
@@ -184,7 +222,6 @@ public class BandService {
                 .build();
         bandMemberRepository.save(member);
 
-        // 모집 정보 업데이트
         recruit.setCurrentCount(recruit.getCurrentCount() + 1);
         bandRecruitRepository.save(recruit);
 
@@ -194,6 +231,7 @@ public class BandService {
                 application.getUserId(),
                 application.getPosition(),
                 application.getStatus(),
+                application.getIntroduction(),
                 application.getCreatedAt()
         );
     }
@@ -203,7 +241,6 @@ public class BandService {
         Band band = bandRepository.findById(bandId)
                 .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
-        // 리더 확인
         if (!band.getLeaderId().equals(leaderId)) {
             throw new UnauthorizedException("리더만 지원을 거절할 수 있습니다.");
         }
@@ -220,6 +257,7 @@ public class BandService {
                 application.getUserId(),
                 application.getPosition(),
                 application.getStatus(),
+                application.getIntroduction(),
                 application.getCreatedAt()
         );
     }
@@ -237,12 +275,29 @@ public class BandService {
         bandRepository.save(band);
     }
 
+    // 밴드 모집 공고 목록 조회
+    @Transactional(readOnly = true)
+    public List<RecruitResponse> getBandRecruits(Long bandId) {
+        bandRepository.findById(bandId)
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
+        return bandRecruitRepository.findByBandId(bandId).stream()
+                .map(r -> new RecruitResponse(
+                        r.getId(),
+                        r.getBandId(),
+                        r.getPosition(),
+                        r.getRequiredCount(),
+                        r.getCurrentCount(),
+                        r.getCreatedAt()
+                ))
+                .collect(Collectors.toList());
+    }
+
     // 밴드의 모든 지원 조회
+    @Transactional(readOnly = true)
     public List<ApplicationResponse> getBandApplications(Long bandId, Long leaderId) {
         Band band = bandRepository.findById(bandId)
                 .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
 
-        // 리더 확인
         if (!band.getLeaderId().equals(leaderId)) {
             throw new UnauthorizedException("리더만 지원 목록을 조회할 수 있습니다.");
         }
@@ -254,6 +309,7 @@ public class BandService {
                         app.getUserId(),
                         app.getPosition(),
                         app.getStatus(),
+                        app.getIntroduction(),
                         app.getCreatedAt()
                 ))
                 .collect(Collectors.toList());

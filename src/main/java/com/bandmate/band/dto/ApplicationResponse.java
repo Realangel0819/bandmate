@@ -10,10 +10,11 @@ import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
 public class ApplicationResponse {
-    private Long id;
+    private Long applicationId;
     private Long bandId;
     private Long userId;
     private Position position;
     private BandApplication.ApplicationStatus status;
+    private String introduction;
     private LocalDateTime createdAt;
 }

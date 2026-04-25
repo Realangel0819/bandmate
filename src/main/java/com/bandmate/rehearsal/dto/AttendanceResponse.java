@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AttendanceResponse {
-    private Long id;
+    private Long attendanceId;
     private Long rehearsalId;
     private Long userId;
     private LocalDateTime createdAt;

@@ -18,27 +18,38 @@ public class BandController {
     private final BandService bandService;
     private final JwtUtil jwtUtil;
 
+    @GetMapping
+    public ResponseEntity<List<BandResponse>> getAllBands() {
+        return ResponseEntity.ok(bandService.getAllBands());
+    }
+
     @PostMapping
     public ResponseEntity<BandResponse> createBand(
             @RequestBody @Valid CreateBandRequest request,
             @RequestHeader("Authorization") String token) {
-        Long userId = jwtUtil.getUserIdFromToken(token.substring(7)); // "Bearer " 제거
-        BandResponse response = bandService.createBand(request, userId);
-        return ResponseEntity.ok(response);
+        Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        return ResponseEntity.ok(bandService.createBand(request, userId));
     }
 
     @GetMapping("/{bandId}")
     public ResponseEntity<BandResponse> getBand(@PathVariable Long bandId) {
-        BandResponse response = bandService.getBand(bandId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(bandService.getBand(bandId));
     }
 
     @GetMapping("/my-bands")
     public ResponseEntity<List<BandResponse>> getMyBands(
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
-        List<BandResponse> responses = bandService.getLeaderBands(userId);
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(bandService.getLeaderBands(userId));
+    }
+
+    @PutMapping("/{bandId}/vote-settings")
+    public ResponseEntity<BandResponse> updateVoteSettings(
+            @PathVariable Long bandId,
+            @RequestBody @Valid UpdateVoteSettingsRequest request,
+            @RequestHeader("Authorization") String token) {
+        Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        return ResponseEntity.ok(bandService.updateVoteSettings(bandId, request, userId));
     }
 
     @PostMapping("/{bandId}/recruits")
@@ -48,8 +59,12 @@ public class BandController {
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
         request.setBandId(bandId);
-        RecruitResponse response = bandService.createRecruit(request, userId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(bandService.createRecruit(request, userId));
+    }
+
+    @GetMapping("/{bandId}/recruits")
+    public ResponseEntity<List<RecruitResponse>> getBandRecruits(@PathVariable Long bandId) {
+        return ResponseEntity.ok(bandService.getBandRecruits(bandId));
     }
 
     @PostMapping("/{bandId}/apply")
@@ -58,8 +73,15 @@ public class BandController {
             @RequestBody @Valid ApplyBandRequest request,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
-        ApplicationResponse response = bandService.applyBand(bandId, request, userId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(bandService.applyBand(bandId, request, userId));
+    }
+
+    @GetMapping("/{bandId}/applications")
+    public ResponseEntity<List<ApplicationResponse>> getBandApplications(
+            @PathVariable Long bandId,
+            @RequestHeader("Authorization") String token) {
+        Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        return ResponseEntity.ok(bandService.getBandApplications(bandId, userId));
     }
 
     @PutMapping("/{bandId}/applications/{applicationId}/approve")
@@ -68,8 +90,7 @@ public class BandController {
             @PathVariable Long applicationId,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
-        ApplicationResponse response = bandService.approveApplication(bandId, applicationId, userId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(bandService.approveApplication(bandId, applicationId, userId));
     }
 
     @PutMapping("/{bandId}/applications/{applicationId}/reject")
@@ -78,8 +99,7 @@ public class BandController {
             @PathVariable Long applicationId,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
-        ApplicationResponse response = bandService.rejectApplication(bandId, applicationId, userId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(bandService.rejectApplication(bandId, applicationId, userId));
     }
 
     @DeleteMapping("/{bandId}")
@@ -89,14 +109,5 @@ public class BandController {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
         bandService.deleteBand(bandId, userId);
         return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/{bandId}/applications")
-    public ResponseEntity<List<ApplicationResponse>> getBandApplications(
-            @PathVariable Long bandId,
-            @RequestHeader("Authorization") String token) {
-        Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
-        List<ApplicationResponse> responses = bandService.getBandApplications(bandId, userId);
-        return ResponseEntity.ok(responses);
     }
 }

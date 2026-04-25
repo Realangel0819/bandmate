@@ -59,6 +59,9 @@ public class BandApplication {
     @Column(nullable = false)
     private Position position;
 
+    @Column(columnDefinition = "TEXT")
+    private String introduction;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ApplicationStatus status;

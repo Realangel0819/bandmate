@@ -25,8 +25,7 @@ public class SongController {
 
     @PostMapping
     public ResponseEntity<Song> createSong(@RequestBody @Valid CreateSongRequest request) {
-        Song song = songService.createSong(request);
-        return ResponseEntity.ok(song);
+        return ResponseEntity.ok(songService.createSong(request));
     }
 
     @PostMapping("/candidates")
@@ -35,15 +34,18 @@ public class SongController {
             @RequestBody @Valid AddSongCandidateRequest request,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        requireLeader(bandId, userId);
+        return ResponseEntity.ok(songService.addSongCandidate(bandId, request, userId));
+    }
 
-        var band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
-        if (!band.getLeaderId().equals(userId)) {
-            throw new UnauthorizedException("리더만 곡을 추가할 수 있습니다.");
-        }
-
-        BandSongResponse response = songService.addSongCandidate(bandId, request, userId);
-        return ResponseEntity.ok(response);
+    @DeleteMapping("/candidates")
+    public ResponseEntity<Void> resetCandidates(
+            @PathVariable Long bandId,
+            @RequestHeader("Authorization") String token) {
+        Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        requireLeader(bandId, userId);
+        songService.resetCandidates(bandId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/vote")
@@ -52,25 +54,38 @@ public class SongController {
             @RequestBody @Valid VoteRequest request,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
-        VoteResponse response = songService.vote(bandId, request, userId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(songService.vote(bandId, request, userId));
+    }
+
+    @DeleteMapping("/votes")
+    public ResponseEntity<Void> resetVotes(
+            @PathVariable Long bandId,
+            @RequestHeader("Authorization") String token) {
+        Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        requireLeader(bandId, userId);
+        songService.resetVotes(bandId);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{bandSongId}/select")
-    public ResponseEntity<BandSongResponse> selectWinningSong(
+    public ResponseEntity<BandSongResponse> selectSong(
             @PathVariable Long bandId,
             @PathVariable Long bandSongId,
             @RequestHeader("Authorization") String token) {
         Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        requireLeader(bandId, userId);
+        return ResponseEntity.ok(songService.selectSong(bandId, bandSongId));
+    }
 
-        var band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
-        if (!band.getLeaderId().equals(userId)) {
-            throw new UnauthorizedException("리더만 곡을 선정할 수 있습니다.");
-        }
-
-        BandSongResponse response = songService.selectWinningSong(bandId, bandSongId);
-        return ResponseEntity.ok(response);
+    @DeleteMapping("/{bandSongId}/select")
+    public ResponseEntity<Void> deselectSong(
+            @PathVariable Long bandId,
+            @PathVariable Long bandSongId,
+            @RequestHeader("Authorization") String token) {
+        Long userId = jwtUtil.getUserIdFromToken(token.substring(7));
+        requireLeader(bandId, userId);
+        songService.deselectSong(bandId, bandSongId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping
@@ -78,13 +93,16 @@ public class SongController {
         return ResponseEntity.ok(songService.getBandSongs(bandId));
     }
 
-    @GetMapping("/active")
-    public ResponseEntity<List<BandSongResponse>> getActiveCandidates(@PathVariable Long bandId) {
-        return ResponseEntity.ok(songService.getActiveCandidates(bandId));
+    @GetMapping("/selected")
+    public ResponseEntity<List<BandSongResponse>> getSelectedSongs(@PathVariable Long bandId) {
+        return ResponseEntity.ok(songService.getSelectedSongs(bandId));
     }
 
-    @GetMapping("/selected")
-    public ResponseEntity<BandSongResponse> getSelectedSong(@PathVariable Long bandId) {
-        return ResponseEntity.ok(songService.getSelectedSong(bandId));
+    private void requireLeader(Long bandId, Long userId) {
+        var band = bandRepository.findById(bandId)
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
+        if (!band.getLeaderId().equals(userId)) {
+            throw new UnauthorizedException("리더만 이 작업을 수행할 수 있습니다.");
+        }
     }
 }

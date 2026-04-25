@@ -15,7 +15,12 @@ public interface BandSongRepository extends JpaRepository<BandSong, Long> {
     
     @Query("SELECT bs FROM BandSong bs WHERE bs.bandId = :bandId AND bs.isSelected = false ORDER BY bs.voteEndDate DESC")
     List<BandSong> findActiveCandidates(Long bandId);
-    
+
     @Query("SELECT bs FROM BandSong bs WHERE bs.bandId = :bandId AND bs.isSelected = true ORDER BY bs.createdAt DESC LIMIT 1")
     Optional<BandSong> findSelectedSong(Long bandId);
+
+    @Query("SELECT bs FROM BandSong bs WHERE bs.bandId = :bandId AND bs.isSelected = true ORDER BY bs.voteCount DESC")
+    List<BandSong> findSelectedSongs(Long bandId);
+
+    void deleteByBandId(Long bandId);
 }

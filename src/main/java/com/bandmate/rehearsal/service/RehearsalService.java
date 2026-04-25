@@ -133,15 +133,11 @@ public class RehearsalService {
         rehearsal.setCurrentCount(rehearsal.getCurrentCount() - 1);
     }
 
-    // 참여자 목록 조회 (리더만)
+    // 참여자 목록 조회 (밴드 멤버 전체)
     @Transactional(readOnly = true)
-    public List<AttendanceResponse> getAttendances(Long bandId, Long rehearsalId, Long leaderId) {
-        Band band = bandRepository.findById(bandId)
-                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
-
-        if (!band.getLeaderId().equals(leaderId)) {
-            throw new UnauthorizedException("리더만 참여자 목록을 조회할 수 있습니다.");
-        }
+    public List<AttendanceResponse> getAttendances(Long bandId, Long rehearsalId, Long userId) {
+        bandMemberRepository.findByBandIdAndUserId(bandId, userId)
+                .orElseThrow(() -> new UnauthorizedException("밴드 멤버만 참여자 목록을 조회할 수 있습니다."));
 
         Rehearsal rehearsal = rehearsalRepository.findById(rehearsalId)
                 .orElseThrow(() -> new NotFoundException("일정을 찾을 수 없습니다."));

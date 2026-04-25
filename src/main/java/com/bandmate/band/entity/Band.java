@@ -51,6 +51,10 @@ public class Band {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    @Builder.Default
+    @Column(name = "max_votes_per_person", columnDefinition = "INT DEFAULT 1")
+    private Integer maxVotesPerPerson = 1;
+
     @Column
     private LocalDateTime deletedAt;
 

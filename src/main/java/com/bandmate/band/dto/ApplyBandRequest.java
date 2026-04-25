@@ -12,4 +12,6 @@ public class ApplyBandRequest {
 
     @NotNull(message = "포지션을 선택해주세요.")
     private Position position;
+
+    private String introduction;
 }

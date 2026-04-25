@@ -11,14 +11,14 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RehearsalResponse {
-    private Long id;
+    private Long rehearsalId;
     private Long bandId;
     private String title;
     private String description;
     private LocalDateTime rehearsalDate;
     private String location;
     private int maxCapacity;
-    private int currentCount;
+    private int currentAttendees;
     private LocalDateTime createdAt;
 
     public static RehearsalResponse from(Rehearsal rehearsal) {

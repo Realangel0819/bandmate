@@ -31,13 +31,14 @@ CREATE TABLE IF NOT EXISTS users (
 -- 2. band
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS band (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    name        VARCHAR(255) NOT NULL,
-    description TEXT,
-    leader_id   BIGINT       NOT NULL,
-    created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-    deleted_at  DATETIME(6)  NULL     DEFAULT NULL,
+    id                   BIGINT       NOT NULL AUTO_INCREMENT,
+    name                 VARCHAR(255) NOT NULL,
+    description          TEXT,
+    leader_id            BIGINT       NOT NULL,
+    max_votes_per_person INT          NOT NULL DEFAULT 1,
+    created_at           DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at           DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    deleted_at           DATETIME(6)  NULL     DEFAULT NULL,
 
     PRIMARY KEY (id),
 
@@ -95,10 +96,11 @@ CREATE TABLE IF NOT EXISTS band_application (
     id         BIGINT      NOT NULL AUTO_INCREMENT,
     band_id    BIGINT      NOT NULL,
     user_id    BIGINT      NOT NULL,
-    recruit_id BIGINT      NOT NULL,
-    position   VARCHAR(20) NOT NULL,
-    status     VARCHAR(20) NOT NULL DEFAULT 'PENDING',   -- PENDING | APPROVED | REJECTED
-    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    recruit_id   BIGINT      NOT NULL,
+    position     VARCHAR(20) NOT NULL,
+    status       VARCHAR(20) NOT NULL DEFAULT 'PENDING',   -- PENDING | APPROVED | REJECTED
+    introduction TEXT,
+    created_at   DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     PRIMARY KEY (id),
 

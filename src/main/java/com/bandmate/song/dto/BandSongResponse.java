@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
 public class BandSongResponse {
-    private Long id;
+    private Long bandSongId;
     private Long bandId;
     private Long songId;
     private String title;
