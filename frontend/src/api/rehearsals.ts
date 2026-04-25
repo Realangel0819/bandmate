@@ -15,8 +15,8 @@ export interface AttendanceResponse {
   attendanceId: number;
   rehearsalId: number;
   userId: number;
-  userNickname?: string;
-  joinedAt: string;
+  nickname: string;
+  createdAt: string;
 }
 
 export const getRehearsals = (bandId: number) =>

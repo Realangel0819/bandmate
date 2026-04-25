@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getBandRecruits,
   getBandApplications,
+  getBandMembers,
   approveApplication,
   rejectApplication,
   createRecruit,
@@ -44,6 +45,11 @@ export default function MembersTab({ bandId, isLeader }: Props) {
   const [applyingTo, setApplyingTo] = useState<RecruitResponse | null>(null);
   const [introduction, setIntroduction] = useState('');
   const [applyError, setApplyError] = useState('');
+
+  const { data: members, isLoading: membersLoading } = useQuery({
+    queryKey: ['bandMembers', bandId],
+    queryFn: () => getBandMembers(bandId).then((r) => r.data),
+  });
 
   const { data: recruits, isLoading: recruitsLoading } = useQuery({
     queryKey: ['recruits', bandId],
@@ -90,6 +96,27 @@ export default function MembersTab({ bandId, isLeader }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* 현재 멤버 */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <h3 className="font-semibold mb-3">현재 멤버 {members ? `(${members.length}명)` : ''}</h3>
+        {membersLoading ? (
+          <p className="text-sm text-gray-400 text-center py-4">불러오는 중...</p>
+        ) : members && members.length > 0 ? (
+          <ul className="space-y-2">
+            {members.map((m) => (
+              <li key={m.memberId} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
+                <div>
+                  <span className="font-medium text-sm">{m.nickname}</span>
+                  <span className="text-xs text-gray-400 ml-2">{positionLabel[m.position] ?? m.position}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-4">멤버가 없습니다.</p>
+        )}
+      </div>
+
       {/* 모집 공고 */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <div className="flex items-center justify-between mb-3">
@@ -229,7 +256,7 @@ export default function MembersTab({ bandId, isLeader }: Props) {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm">유저 #{app.userId}</span>
+                        <span className="font-medium text-sm">{app.nickname}</span>
                         <span className="text-xs text-gray-400">
                           {positionLabel[app.position] ?? app.position}
                         </span>

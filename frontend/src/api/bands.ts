@@ -23,10 +23,19 @@ export interface ApplicationResponse {
   applicationId: number;
   bandId: number;
   userId: number;
+  nickname: string;
   position: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   introduction?: string;
   createdAt: string;
+}
+
+export interface BandMemberResponse {
+  memberId: number;
+  userId: number;
+  nickname: string;
+  position: string;
+  joinedAt: string;
 }
 
 export const getAllBands = () =>
@@ -40,6 +49,9 @@ export const getBand = (bandId: number) =>
 
 export const getMyBands = () =>
   client.get<BandResponse[]>('/bands/my-bands');
+
+export const getBandMembers = (bandId: number) =>
+  client.get<BandMemberResponse[]>(`/bands/${bandId}/members`);
 
 export const deleteBand = (bandId: number) =>
   client.delete(`/bands/${bandId}`);

@@ -7,6 +7,7 @@ import com.bandmate.common.exception.DuplicateException;
 import com.bandmate.common.exception.InvalidRequestException;
 import com.bandmate.common.exception.NotFoundException;
 import com.bandmate.common.exception.UnauthorizedException;
+import com.bandmate.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ public class BandService {
     private final BandRecruitRepository bandRecruitRepository;
     private final BandApplicationRepository bandApplicationRepository;
     private final BandMemberRepository bandMemberRepository;
+    private final UserRepository userRepository;
 
     // 전체 밴드 목록 조회
     @Transactional(readOnly = true)
@@ -126,6 +128,22 @@ public class BandService {
         );
     }
 
+    // 밴드 멤버 목록 조회
+    @Transactional(readOnly = true)
+    public List<BandMemberResponse> getBandMembers(Long bandId) {
+        bandRepository.findById(bandId)
+                .orElseThrow(() -> new NotFoundException("밴드를 찾을 수 없습니다."));
+        return bandMemberRepository.findByBandId(bandId).stream()
+                .map(m -> new BandMemberResponse(
+                        m.getId(),
+                        m.getUserId(),
+                        m.getUser() != null ? m.getUser().getNickname() : "알 수 없음",
+                        m.getPosition() != null ? m.getPosition().name() : null,
+                        m.getJoinedAt()
+                ))
+                .collect(Collectors.toList());
+    }
+
     // 모집 정보 추가
     public RecruitResponse createRecruit(CreateRecruitRequest request, Long leaderId) {
         Band band = bandRepository.findById(request.getBandId())
@@ -181,11 +199,14 @@ public class BandService {
                 .build();
 
         BandApplication savedApplication = bandApplicationRepository.save(application);
+        String applyNickname = userRepository.findById(userId)
+                .map(u -> u.getNickname()).orElse("알 수 없음");
 
         return new ApplicationResponse(
                 savedApplication.getId(),
                 savedApplication.getBandId(),
                 savedApplication.getUserId(),
+                applyNickname,
                 savedApplication.getPosition(),
                 savedApplication.getStatus(),
                 savedApplication.getIntroduction(),
@@ -225,10 +246,15 @@ public class BandService {
         recruit.setCurrentCount(recruit.getCurrentCount() + 1);
         bandRecruitRepository.save(recruit);
 
+        String approveNickname = application.getUser() != null
+                ? application.getUser().getNickname()
+                : userRepository.findById(application.getUserId()).map(u -> u.getNickname()).orElse("알 수 없음");
+
         return new ApplicationResponse(
                 application.getId(),
                 application.getBandId(),
                 application.getUserId(),
+                approveNickname,
                 application.getPosition(),
                 application.getStatus(),
                 application.getIntroduction(),
@@ -251,10 +277,15 @@ public class BandService {
         application.setStatus(BandApplication.ApplicationStatus.REJECTED);
         bandApplicationRepository.save(application);
 
+        String rejectNickname = application.getUser() != null
+                ? application.getUser().getNickname()
+                : userRepository.findById(application.getUserId()).map(u -> u.getNickname()).orElse("알 수 없음");
+
         return new ApplicationResponse(
                 application.getId(),
                 application.getBandId(),
                 application.getUserId(),
+                rejectNickname,
                 application.getPosition(),
                 application.getStatus(),
                 application.getIntroduction(),
@@ -303,15 +334,21 @@ public class BandService {
         }
 
         return bandApplicationRepository.findByBandId(bandId).stream()
-                .map(app -> new ApplicationResponse(
-                        app.getId(),
-                        app.getBandId(),
-                        app.getUserId(),
-                        app.getPosition(),
-                        app.getStatus(),
-                        app.getIntroduction(),
-                        app.getCreatedAt()
-                ))
+                .map(app -> {
+                    String nick = app.getUser() != null
+                            ? app.getUser().getNickname()
+                            : userRepository.findById(app.getUserId()).map(u -> u.getNickname()).orElse("알 수 없음");
+                    return new ApplicationResponse(
+                            app.getId(),
+                            app.getBandId(),
+                            app.getUserId(),
+                            nick,
+                            app.getPosition(),
+                            app.getStatus(),
+                            app.getIntroduction(),
+                            app.getCreatedAt()
+                    );
+                })
                 .collect(Collectors.toList());
     }
 }

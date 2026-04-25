@@ -1,6 +1,5 @@
 package com.bandmate.rehearsal.dto;
 
-import com.bandmate.rehearsal.entity.RehearsalAttendance;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,14 +13,6 @@ public class AttendanceResponse {
     private Long attendanceId;
     private Long rehearsalId;
     private Long userId;
+    private String nickname;
     private LocalDateTime createdAt;
-
-    public static AttendanceResponse from(RehearsalAttendance attendance) {
-        return new AttendanceResponse(
-                attendance.getId(),
-                attendance.getRehearsalId(),
-                attendance.getUserId(),
-                attendance.getCreatedAt()
-        );
-    }
 }

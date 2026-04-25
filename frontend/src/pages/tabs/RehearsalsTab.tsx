@@ -46,7 +46,7 @@ function AttendanceSection({
                 : 'bg-gray-100 text-gray-600'
             }`}
           >
-            {a.userId === currentUserId ? '나' : `유저 #${a.userId}`}
+            {a.userId === currentUserId ? `나 (${a.nickname})` : a.nickname}
           </span>
         ))}
       </div>

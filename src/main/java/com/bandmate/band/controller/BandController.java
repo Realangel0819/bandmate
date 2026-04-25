@@ -52,6 +52,11 @@ public class BandController {
         return ResponseEntity.ok(bandService.updateVoteSettings(bandId, request, userId));
     }
 
+    @GetMapping("/{bandId}/members")
+    public ResponseEntity<List<BandMemberResponse>> getBandMembers(@PathVariable Long bandId) {
+        return ResponseEntity.ok(bandService.getBandMembers(bandId));
+    }
+
     @PostMapping("/{bandId}/recruits")
     public ResponseEntity<RecruitResponse> createRecruit(
             @PathVariable Long bandId,

@@ -3,6 +3,7 @@ package com.bandmate.rehearsal.service;
 import com.bandmate.band.entity.Band;
 import com.bandmate.band.repository.BandMemberRepository;
 import com.bandmate.band.repository.BandRepository;
+import com.bandmate.user.repository.UserRepository;
 import com.bandmate.common.exception.DuplicateException;
 import com.bandmate.common.exception.InvalidRequestException;
 import com.bandmate.common.exception.NotFoundException;
@@ -30,6 +31,7 @@ public class RehearsalService {
     private final RehearsalAttendanceRepository attendanceRepository;
     private final BandRepository bandRepository;
     private final BandMemberRepository bandMemberRepository;
+    private final UserRepository userRepository;
 
     // 일정 생성 (리더만)
     public RehearsalResponse createRehearsal(Long bandId, CreateRehearsalRequest request, Long leaderId) {
@@ -110,11 +112,15 @@ public class RehearsalService {
                 .rehearsalId(rehearsalId)
                 .userId(userId)
                 .build();
-        attendanceRepository.save(attendance);
+        RehearsalAttendance saved = attendanceRepository.save(attendance);
 
         rehearsal.setCurrentCount(rehearsal.getCurrentCount() + 1);
 
-        return AttendanceResponse.from(attendance);
+        String nickname = userRepository.findById(userId)
+                .map(u -> u.getNickname())
+                .orElse("알 수 없음");
+
+        return new AttendanceResponse(saved.getId(), rehearsalId, userId, nickname, saved.getCreatedAt());
     }
 
     // 참여 신청 취소
@@ -147,7 +153,14 @@ public class RehearsalService {
         }
 
         return attendanceRepository.findByRehearsalId(rehearsalId).stream()
-                .map(AttendanceResponse::from)
+                .map(a -> {
+                    String nickname = a.getUser() != null
+                            ? a.getUser().getNickname()
+                            : userRepository.findById(a.getUserId())
+                                    .map(u -> u.getNickname())
+                                    .orElse("알 수 없음");
+                    return new AttendanceResponse(a.getId(), a.getRehearsalId(), a.getUserId(), nickname, a.getCreatedAt());
+                })
                 .collect(Collectors.toList());
     }
 }

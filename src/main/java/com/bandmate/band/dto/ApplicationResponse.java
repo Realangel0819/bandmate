@@ -13,6 +13,7 @@ public class ApplicationResponse {
     private Long applicationId;
     private Long bandId;
     private Long userId;
+    private String nickname;
     private Position position;
     private BandApplication.ApplicationStatus status;
     private String introduction;
