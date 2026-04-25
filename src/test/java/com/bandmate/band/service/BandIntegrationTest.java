@@ -18,10 +18,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * H2 in-memory DB를 사용하는 통합 테스트.
- * @Transactional → 각 테스트 후 자동 롤백되어 DB 격리 보장.
- */
 @SpringBootTest
 @Transactional
 class BandIntegrationTest {
@@ -42,13 +38,13 @@ class BandIntegrationTest {
         User leader = userRepository.save(User.builder()
                 .email("leader_" + System.nanoTime() + "@test.com")
                 .password(passwordEncoder.encode("pass"))
-                .nickname("리더").build());
+                .nickname("리더" + System.nanoTime()).build());
         leaderId = leader.getId();
 
         User member = userRepository.save(User.builder()
                 .email("member_" + System.nanoTime() + "@test.com")
                 .password(passwordEncoder.encode("pass"))
-                .nickname("멤버").build());
+                .nickname("멤버" + System.nanoTime()).build());
         memberId = member.getId();
     }
 
@@ -61,28 +57,24 @@ class BandIntegrationTest {
 
         BandResponse response = bandService.createBand(request, leaderId);
 
-        assertThat(response.getId()).isNotNull();
+        assertThat(response.getBandId()).isNotNull();
         assertThat(response.getName()).isEqualTo("록밴드");
         assertThat(response.getLeaderId()).isEqualTo(leaderId);
         assertThat(response.getMemberCount()).isEqualTo(1);
 
-        // DB에 실제로 저장됐는지 확인
-        assertThat(bandRepository.findById(response.getId())).isPresent();
-        // 리더가 멤버로 등록됐는지 확인
-        assertThat(bandMemberRepository.findByBandIdAndUserId(response.getId(), leaderId)).isPresent();
+        assertThat(bandRepository.findById(response.getBandId())).isPresent();
+        assertThat(bandMemberRepository.findByBandIdAndUserId(response.getBandId(), leaderId)).isPresent();
     }
 
     @Test
     @DisplayName("밴드 생성 → 모집 공고 등록 → 지원 → 승인 전체 플로우")
     void fullRecruitFlow_createApproveApplication() {
-        // 밴드 생성
         CreateBandRequest bandReq = new CreateBandRequest();
         bandReq.setName("재즈밴드");
         bandReq.setDescription("재즈 좋아하는 사람");
         BandResponse band = bandService.createBand(bandReq, leaderId);
-        Long bandId = band.getId();
+        Long bandId = band.getBandId();
 
-        // 모집 공고 등록 (기타 2명)
         CreateRecruitRequest recruitReq = new CreateRecruitRequest();
         recruitReq.setBandId(bandId);
         recruitReq.setPosition(Position.GUITAR);
@@ -93,24 +85,19 @@ class BandIntegrationTest {
         assertThat(recruit.getRequiredCount()).isEqualTo(2);
         assertThat(recruit.getCurrentCount()).isEqualTo(0);
 
-        // 멤버 지원
         ApplyBandRequest applyReq = new ApplyBandRequest();
-        applyReq.setRecruitId(recruit.getId());
+        applyReq.setRecruitId(recruit.getRecruitId());
         applyReq.setPosition(Position.GUITAR);
         ApplicationResponse application = bandService.applyBand(bandId, applyReq, memberId);
 
         assertThat(application.getStatus()).isEqualTo(BandApplication.ApplicationStatus.PENDING);
 
-        // 리더가 승인
-        ApplicationResponse approved = bandService.approveApplication(bandId, application.getId(), leaderId);
+        ApplicationResponse approved = bandService.approveApplication(bandId, application.getApplicationId(), leaderId);
 
         assertThat(approved.getStatus()).isEqualTo(BandApplication.ApplicationStatus.APPROVED);
-
-        // DB에서 멤버 추가 확인
         assertThat(bandMemberRepository.findByBandIdAndUserId(bandId, memberId)).isPresent();
 
-        // 모집 공고 currentCount 증가 확인
-        BandRecruit updatedRecruit = bandRecruitRepository.findById(recruit.getId()).orElseThrow();
+        BandRecruit updatedRecruit = bandRecruitRepository.findById(recruit.getRecruitId()).orElseThrow();
         assertThat(updatedRecruit.getCurrentCount()).isEqualTo(1);
     }
 
@@ -120,23 +107,20 @@ class BandIntegrationTest {
         CreateBandRequest bandReq = new CreateBandRequest();
         bandReq.setName("테스트밴드");
         BandResponse band = bandService.createBand(bandReq, leaderId);
-        Long bandId = band.getId();
+        Long bandId = band.getBandId();
 
-        // 정원 1명짜리 모집 공고
         CreateRecruitRequest recruitReq = new CreateRecruitRequest();
         recruitReq.setBandId(bandId);
         recruitReq.setPosition(Position.DRUM);
         recruitReq.setRequiredCount(1);
         RecruitResponse recruit = bandService.createRecruit(recruitReq, leaderId);
 
-        // DB에 currentCount=1인 상태로 직접 설정 (정원 가득 참)
-        BandRecruit recruitEntity = bandRecruitRepository.findById(recruit.getId()).orElseThrow();
+        BandRecruit recruitEntity = bandRecruitRepository.findById(recruit.getRecruitId()).orElseThrow();
         recruitEntity.setCurrentCount(1);
         bandRecruitRepository.save(recruitEntity);
 
-        // 지원 시도 → 정원 초과 에러
         ApplyBandRequest applyReq = new ApplyBandRequest();
-        applyReq.setRecruitId(recruit.getId());
+        applyReq.setRecruitId(recruit.getRecruitId());
         applyReq.setPosition(Position.DRUM);
 
         assertThatThrownBy(() -> bandService.applyBand(bandId, applyReq, memberId))
@@ -150,7 +134,7 @@ class BandIntegrationTest {
         CreateBandRequest bandReq = new CreateBandRequest();
         bandReq.setName("중복테스트밴드");
         BandResponse band = bandService.createBand(bandReq, leaderId);
-        Long bandId = band.getId();
+        Long bandId = band.getBandId();
 
         CreateRecruitRequest recruitReq = new CreateRecruitRequest();
         recruitReq.setBandId(bandId);
@@ -159,18 +143,15 @@ class BandIntegrationTest {
         RecruitResponse recruit = bandService.createRecruit(recruitReq, leaderId);
 
         ApplyBandRequest applyReq = new ApplyBandRequest();
-        applyReq.setRecruitId(recruit.getId());
+        applyReq.setRecruitId(recruit.getRecruitId());
         applyReq.setPosition(Position.BASS);
 
-        // 첫 번째 지원 성공
         bandService.applyBand(bandId, applyReq, memberId);
 
-        // 두 번째 지원 실패
         assertThatThrownBy(() -> bandService.applyBand(bandId, applyReq, memberId))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("이미 이 밴드에 지원했습니다.");
 
-        // DB에 지원서 1개만 존재하는지 확인
         List<BandApplication> apps = bandApplicationRepository.findByBandId(bandId);
         assertThat(apps).hasSize(1);
     }
@@ -181,7 +162,7 @@ class BandIntegrationTest {
         CreateBandRequest bandReq = new CreateBandRequest();
         bandReq.setName("거절테스트밴드");
         BandResponse band = bandService.createBand(bandReq, leaderId);
-        Long bandId = band.getId();
+        Long bandId = band.getBandId();
 
         CreateRecruitRequest recruitReq = new CreateRecruitRequest();
         recruitReq.setBandId(bandId);
@@ -190,16 +171,13 @@ class BandIntegrationTest {
         RecruitResponse recruit = bandService.createRecruit(recruitReq, leaderId);
 
         ApplyBandRequest applyReq = new ApplyBandRequest();
-        applyReq.setRecruitId(recruit.getId());
+        applyReq.setRecruitId(recruit.getRecruitId());
         applyReq.setPosition(Position.KEYBOARD);
         ApplicationResponse application = bandService.applyBand(bandId, applyReq, memberId);
 
-        // 거절
-        ApplicationResponse rejected = bandService.rejectApplication(bandId, application.getId(), leaderId);
+        ApplicationResponse rejected = bandService.rejectApplication(bandId, application.getApplicationId(), leaderId);
 
         assertThat(rejected.getStatus()).isEqualTo(BandApplication.ApplicationStatus.REJECTED);
-
-        // 멤버로 등록되지 않았는지 확인
         assertThat(bandMemberRepository.findByBandIdAndUserId(bandId, memberId)).isEmpty();
     }
 
@@ -209,7 +187,7 @@ class BandIntegrationTest {
         CreateBandRequest bandReq = new CreateBandRequest();
         bandReq.setName("포지션중복테스트밴드");
         BandResponse band = bandService.createBand(bandReq, leaderId);
-        Long bandId = band.getId();
+        Long bandId = band.getBandId();
 
         CreateRecruitRequest req1 = new CreateRecruitRequest();
         req1.setBandId(bandId);
@@ -224,7 +202,7 @@ class BandIntegrationTest {
         RecruitResponse r1 = bandService.createRecruit(req1, leaderId);
         RecruitResponse r2 = bandService.createRecruit(req2, leaderId);
 
-        assertThat(r1.getId()).isNotEqualTo(r2.getId());
+        assertThat(r1.getRecruitId()).isNotEqualTo(r2.getRecruitId());
         assertThat(bandRecruitRepository.findByBandId(bandId)).hasSize(2);
     }
 }

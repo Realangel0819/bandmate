@@ -25,8 +25,22 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(403, ex.getMessage()));
     }
 
+    // 중복 투표 — 409 Conflict (DuplicateException 보다 먼저 등록되어야 함)
+    @ExceptionHandler(AlreadyVotedException.class)
+    public ResponseEntity<ErrorResponse> handleAlreadyVoted(AlreadyVotedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(409, ex.getMessage()));
+    }
+
     @ExceptionHandler(DuplicateException.class)
     public ResponseEntity<ErrorResponse> handleDuplicate(DuplicateException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(409, ex.getMessage()));
+    }
+
+    // 정원 초과 — 409 Conflict (InvalidRequestException 보다 먼저 등록)
+    @ExceptionHandler(CapacityExceededException.class)
+    public ResponseEntity<ErrorResponse> handleCapacityExceeded(CapacityExceededException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse(409, ex.getMessage()));
     }

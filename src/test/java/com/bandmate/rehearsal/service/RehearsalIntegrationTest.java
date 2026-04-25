@@ -80,7 +80,7 @@ class RehearsalIntegrationTest {
     private Long createRehearsal(int capacity) {
         CreateRehearsalRequest request = new CreateRehearsalRequest(
                 "정기 합주", "주간 합주", LocalDateTime.now().plusDays(7), "홍대 연습실", capacity);
-        return rehearsalService.createRehearsal(bandId, request, leaderId).getId();
+        return rehearsalService.createRehearsal(bandId, request, leaderId).getRehearsalId();
     }
 
     @Test

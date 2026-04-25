@@ -4,10 +4,8 @@ import com.bandmate.band.entity.Band;
 import com.bandmate.band.repository.BandMemberRepository;
 import com.bandmate.band.repository.BandRepository;
 import com.bandmate.user.repository.UserRepository;
-import com.bandmate.common.exception.DuplicateException;
-import com.bandmate.common.exception.InvalidRequestException;
-import com.bandmate.common.exception.NotFoundException;
-import com.bandmate.common.exception.UnauthorizedException;
+import com.bandmate.common.exception.*;
+
 import com.bandmate.rehearsal.dto.AttendanceResponse;
 import com.bandmate.rehearsal.dto.CreateRehearsalRequest;
 import com.bandmate.rehearsal.dto.RehearsalResponse;
@@ -105,7 +103,7 @@ public class RehearsalService {
 
         // 정원 확인 — 락을 잡은 상태에서 체크하므로 동시 요청이 있어도 안전
         if (rehearsal.getCurrentCount() >= rehearsal.getMaxCapacity()) {
-            throw new InvalidRequestException("정원이 초과되었습니다.");
+            throw new CapacityExceededException("정원이 초과되었습니다.");
         }
 
         RehearsalAttendance attendance = RehearsalAttendance.builder()

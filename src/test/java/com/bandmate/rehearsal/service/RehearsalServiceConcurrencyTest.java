@@ -100,7 +100,7 @@ class RehearsalServiceConcurrencyTest {
                 "홍대 연습실",
                 MAX_CAPACITY
         );
-        rehearsalId = rehearsalService.createRehearsal(bandId, request, leaderId).getId();
+        rehearsalId = rehearsalService.createRehearsal(bandId, request, leaderId).getRehearsalId();
     }
 
     @Test

@@ -1,5 +1,9 @@
 package com.bandmate.user.service;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.bandmate.common.exception.DuplicateException;
 import com.bandmate.common.exception.InvalidRequestException;
 import com.bandmate.user.dto.LoginRequest;
@@ -7,10 +11,8 @@ import com.bandmate.user.dto.LoginResponse;
 import com.bandmate.user.dto.SignupRequest;
 import com.bandmate.user.entity.User;
 import com.bandmate.user.repository.UserRepository;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor

@@ -3,10 +3,7 @@ package com.bandmate.song.service;
 import com.bandmate.band.entity.Band;
 import com.bandmate.band.repository.BandMemberRepository;
 import com.bandmate.band.repository.BandRepository;
-import com.bandmate.common.exception.DuplicateException;
-import com.bandmate.common.exception.InvalidRequestException;
-import com.bandmate.common.exception.NotFoundException;
-import com.bandmate.common.exception.UnauthorizedException;
+import com.bandmate.common.exception.*;
 import com.bandmate.song.dto.*;
 import com.bandmate.song.entity.*;
 import com.bandmate.song.repository.*;
@@ -77,7 +74,7 @@ public class SongService {
         }
 
         if (songVoteRepository.findByBandSongIdAndUserId(request.getBandSongId(), userId).isPresent()) {
-            throw new DuplicateException("이 곡에 이미 투표했습니다.");
+            throw new AlreadyVotedException("이 곡에 이미 투표했습니다.");
         }
 
         SongVote vote = SongVote.builder()

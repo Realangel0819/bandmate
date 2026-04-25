@@ -8,36 +8,39 @@
 ![Flyway](https://img.shields.io/badge/Flyway-Migration-CC0000)
 ![React](https://img.shields.io/badge/React-18-61DAFB)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)
-![AWS](https://img.shields.io/badge/AWS-EC2%20%2F%20RDS-FF9900)
+![AWS](https://img.shields.io/badge/AWS-ECR%20%2F%20EC2%20%2F%20RDS-FF9900)
+
+---
+
+## 30초 요약
+
+**BandMate**는 밴드 멤버를 모집하고, 공연곡을 투표로 선정하고, 합주 일정을 관리하는 웹 서비스입니다.
+
+**구현 목표:** 실무에서 자주 마주치는 동시성 문제(합주 정원 초과), 스키마 버전 관리(Flyway), JWT 인증, 역할 기반 권한 제어를 직접 구현했습니다.
+
+| 핵심 기술 결정 | 이유 |
+|----------------|------|
+| `SELECT FOR UPDATE` 비관적 락 | 마감 직전 동시 신청 패턴 — 낙관적 락의 재시도 오버헤드보다 직렬화가 더 적합 |
+| Flyway + `ddl-auto: validate` | 자동 DDL의 예측 불가 동작 제거, 체크섬으로 스키마 무결성 보장 |
+| Soft Delete + `@SQLRestriction` | Repository 수정 없이 모든 쿼리에서 삭제된 밴드 자동 제외 |
+| `song_vote.band_id` 비정규화 | 투표 권한 체크 쿼리의 JOIN 제거 (매 요청마다 실행되는 핫 패스) |
 
 ---
 
 ## 목차
 
-- [프로젝트 소개](#프로젝트-소개)
 - [기술 스택](#기술-스택)
 - [주요 기능](#주요-기능)
 - [데이터베이스 설계](#데이터베이스-설계)
 - [스키마 버전 관리 (Flyway)](#스키마-버전-관리-flyway)
 - [API 명세](#api-명세)
 - [주요 구현 포인트](#주요-구현-포인트)
+- [합주 신청 시퀀스 다이어그램](#합주-신청-시퀀스-다이어그램)
+- [CI/CD 파이프라인](#cicd-파이프라인)
 - [프로젝트 구조](#프로젝트-구조)
 - [실행 방법](#실행-방법)
 - [배포](#배포)
-
----
-
-## 프로젝트 소개
-
-BandMate는 밴드 팀원 모집, 포지션별 지원/승인, 공연곡 투표, 합주 일정 관리를 지원하는 **풀스택 웹 애플리케이션**입니다.
-
-| 기능 | 설명 |
-|------|------|
-| 밴드 모집 | 포지션별 정원 설정 · 자기소개 포함 지원 · 리더 승인/거절 · 멤버 강퇴/탈퇴 |
-| 공연곡 선정 | 곡 후보 등록(유튜브 링크) → 멤버 투표 → 복수 선정 · 자동 선정 |
-| 합주 일정 | 일정 생성 · 참여 신청 · 비관적 락 동시성 안전 정원 관리 |
-
-**백엔드 구현 목표:** 비관적 락 동시성 처리, Soft Delete, Flyway 마이그레이션, JPA Entity 설계, DTO 분리, 글로벌 예외 처리 등 실무 백엔드 패턴을 직접 구현
+- [트러블슈팅](#트러블슈팅)
 
 ---
 
@@ -54,6 +57,7 @@ BandMate는 밴드 팀원 모집, 포지션별 지원/승인, 공연곡 투표, 
 | Security | Spring Security + JWT (jjwt 0.12.5) | Stateless 인증, Bearer 토큰 |
 | Validation | Bean Validation (`@Valid`) | 입력 검증 자동화 |
 | Database | MySQL 8.0 | 트랜잭션, 인덱스, 비관적 락 지원 |
+| API Docs | springdoc-openapi 2.8 | Swagger UI 자동 생성, JWT Bearer 인증 통합 |
 | Build | Gradle | 빌드 캐시, 의존성 관리 |
 
 ### Frontend
@@ -73,8 +77,9 @@ BandMate는 밴드 팀원 모집, 포지션별 지원/승인, 공연곡 투표, 
 |------|------|
 | Containerize | Docker + Docker Compose |
 | Web Server | nginx (SPA 서빙 + /api 역방향 프록시) |
-| Deploy | AWS EC2 (t2.micro, docker-compose.prod.yml) |
-| Database | AWS RDS MySQL 8.0 (자동 백업, 다중 AZ 옵션) |
+| CI/CD | **GitHub Actions → Amazon ECR → AWS EC2** |
+| Deploy | AWS EC2 (t2.micro) |
+| Database | AWS RDS MySQL 8.0 (자동 백업, Free Tier) |
 | Backup | mysqldump → S3 (cron 스케줄, 7일 보관) |
 
 ---
@@ -95,7 +100,7 @@ BandMate는 밴드 팀원 모집, 포지션별 지원/승인, 공연곡 투표, 
 - 포지션별 모집 공고 등록 + **자기소개 포함 지원서** + 리더 승인/거절
 
 ### 🎵 공연곡 선정 시스템
-- 글로벌 곡 카탈로그 등록 (제목+아티스트 중복 방지, 유튜브 링크)
+- 글로벌 곡 카탈로그 등록 (제목+아티스트, 유튜브 링크)
 - **밴드 멤버만 투표 가능** — 비멤버 차단
 - **인당 투표 수 설정** — 리더가 1~N표 설정
 - 모든 멤버 투표 완료 시 **최다 득표곡 자동 선정**
@@ -108,7 +113,7 @@ BandMate는 밴드 팀원 모집, 포지션별 지원/승인, 공연곡 투표, 
 
 ### 🛡️ 공통
 - 글로벌 예외 처리 (`@RestControllerAdvice`) — 404/403/409/400/500 명확히 분리
-- DTO 입력 검증 (`@Valid`) — 모든 요청 바디 필드 검증 자동화
+- Swagger UI (`/swagger-ui/index.html`) — JWT Bearer 인증 통합, 전 엔드포인트 문서화
 
 ---
 
@@ -270,6 +275,8 @@ ALTER TABLE users ADD COLUMN profile_image_url VARCHAR(500) NULL AFTER nickname;
 
 ## API 명세
 
+> Swagger UI: 앱 실행 후 `/swagger-ui/index.html` — JWT Bearer 인증 통합
+
 ### 인증 `/api/users`
 
 | Method | URL | 설명 |
@@ -303,18 +310,6 @@ ALTER TABLE users ADD COLUMN profile_image_url VARCHAR(500) NULL AFTER nickname;
 | PUT | `/{bandId}/applications/{id}/approve` | 리더 | 지원 승인 |
 | PUT | `/{bandId}/applications/{id}/reject` | 리더 | 지원 거절 |
 
-```json
-// GET /api/bands/1/members → Response
-[
-  { "memberId": 1, "userId": 3, "nickname": "기타리스트", "position": "GUITAR", "joinedAt": "2025-04-25T10:00:00" },
-  { "memberId": 2, "userId": 5, "nickname": "드러머김씨", "position": "DRUM",   "joinedAt": "2025-04-26T14:00:00" }
-]
-
-// DELETE /api/bands/1/members/2  (리더가 강퇴 또는 본인 탈퇴)
-// → 204 No Content
-// 리더는 탈퇴 불가 (밴드 삭제로 처리)
-```
-
 **포지션:** `VOCAL` · `GUITAR` · `BASS` · `DRUM` · `KEYBOARD` · `ETC`
 
 ---
@@ -326,7 +321,7 @@ ALTER TABLE users ADD COLUMN profile_image_url VARCHAR(500) NULL AFTER nickname;
 | POST | `/` | - | 곡 등록 (유튜브 링크 포함) |
 | POST | `/candidates` | 리더 | 후보곡 추가 |
 | DELETE | `/candidates` | 리더 | 후보곡 전체 초기화 |
-| POST | `/vote` | **멤버** | 투표 (비멤버 차단) |
+| POST | `/vote` | **멤버** | 투표 (비멤버 차단, 409 중복) |
 | DELETE | `/votes` | 리더 | 투표 전체 초기화 |
 | PUT | `/{bandSongId}/select` | 리더 | 곡 선정 (복수 가능) |
 | DELETE | `/{bandSongId}/select` | 리더 | 선정 취소 |
@@ -341,23 +336,16 @@ ALTER TABLE users ADD COLUMN profile_image_url VARCHAR(500) NULL AFTER nickname;
 |--------|-----|------|------|
 | POST | `/` | 리더 | 일정 생성 |
 | GET | `/` | - | 일정 목록 |
-| POST | `/{rehearsalId}/join` | 멤버 | 참여 신청 |
+| POST | `/{rehearsalId}/join` | 멤버 | 참여 신청 (409 정원 초과) |
 | DELETE | `/{rehearsalId}/join` | 멤버 | 참여 취소 |
 | GET | `/{rehearsalId}/attendances` | 멤버 | 참여자 목록 **(닉네임 포함)** |
-
-```json
-// GET /api/bands/1/rehearsals/1/attendances → Response
-[
-  { "attendanceId": 1, "rehearsalId": 1, "userId": 3, "nickname": "기타리스트", "createdAt": "2025-05-01T10:00:00" }
-]
-```
 
 ### 에러 응답 형식
 
 ```json
-{ "status": 404, "message": "밴드를 찾을 수 없습니다.", "timestamp": "2025-04-25T10:00:00" }
-{ "status": 403, "message": "리더만 이 작업을 수행할 수 있습니다.", "timestamp": "..." }
-{ "status": 409, "message": "이미 이 밴드에 지원했습니다.", "timestamp": "..." }
+{ "status": 404, "message": "밴드를 찾을 수 없습니다." }
+{ "status": 403, "message": "리더만 이 작업을 수행할 수 있습니다." }
+{ "status": 409, "message": "이미 이 밴드에 지원했습니다." }
 ```
 
 ---
@@ -381,7 +369,7 @@ public AttendanceResponse joinRehearsal(...) {
     Rehearsal rehearsal = rehearsalRepository.findByIdWithLock(rehearsalId)...;
 
     if (rehearsal.getCurrentCount() >= rehearsal.getMaxCapacity())
-        throw new InvalidRequestException("정원이 초과되었습니다.");
+        throw new CapacityExceededException("정원이 초과되었습니다.");
 
     attendanceRepository.save(attendance);
     rehearsal.setCurrentCount(rehearsal.getCurrentCount() + 1);
@@ -445,12 +433,13 @@ public VoteResponse vote(Long bandId, VoteRequest request, Long userId) {
     if (votesUsed >= band.getMaxVotesPerPerson())
         throw new InvalidRequestException("투표 가능 횟수를 모두 사용했습니다.");
 
-    // ③ 같은 곡 중복 투표 방지 (DB UNIQUE + 서비스 레이어 이중 검사)
+    // ③ 같은 곡 중복 투표 방지 → AlreadyVotedException (409)
+    if (songVoteRepository.findByBandSongIdAndUserId(...).isPresent())
+        throw new AlreadyVotedException("이 곡에 이미 투표했습니다.");
+
     songVoteRepository.save(vote);
 
     // ④ 전원 투표 완료 시 자동 선정
-    int totalVotes = songVoteRepository.countByBandId(bandId);
-    int totalMembers = bandMemberRepository.countByBandId(bandId);
     if (totalVotes >= totalMembers * band.getMaxVotesPerPerson()) {
         // 최다 득표 후보 → isSelected = true
     }
@@ -515,15 +504,105 @@ public void removeMember(Long bandId, Long memberId, Long requesterId) {
 
 ---
 
+## 합주 신청 시퀀스 다이어그램
+
+비관적 락이 동시 요청을 어떻게 직렬화하는지 보여주는 흐름입니다.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant RehearsalController
+    participant RehearsalService
+    participant DB as MySQL (RDS)
+
+    Client->>RehearsalController: POST /api/bands/{bandId}/rehearsals/{id}/join
+    RehearsalController->>RehearsalService: joinRehearsal(bandId, rehearsalId, userId)
+
+    RehearsalService->>DB: BEGIN TRANSACTION
+    RehearsalService->>DB: SELECT * FROM rehearsal WHERE id=? FOR UPDATE
+    Note over DB: 다른 트랜잭션은 이 row에서 대기
+
+    DB-->>RehearsalService: Rehearsal (currentCount, maxCapacity)
+
+    alt 정원 초과 (currentCount >= maxCapacity)
+        RehearsalService-->>RehearsalController: CapacityExceededException (409)
+        RehearsalController-->>Client: 409 정원이 초과되었습니다.
+    else 중복 신청 (이미 attendance 존재)
+        RehearsalService-->>RehearsalController: DuplicateException (409)
+        RehearsalController-->>Client: 409 이미 참여 신청했습니다.
+    else 정상 처리
+        RehearsalService->>DB: INSERT INTO rehearsal_attendance ...
+        RehearsalService->>DB: UPDATE rehearsal SET current_count = current_count + 1
+        RehearsalService->>DB: COMMIT (락 해제)
+        Note over DB: 대기 중인 다음 트랜잭션이 갱신된 count를 읽음
+        DB-->>RehearsalService: AttendanceResponse
+        RehearsalService-->>RehearsalController: AttendanceResponse
+        RehearsalController-->>Client: 200 OK
+    end
+```
+
+---
+
+## CI/CD 파이프라인
+
+`main` 브랜치에 push하면 자동으로 테스트 → ECR 빌드 → EC2 배포가 실행됩니다.
+
+```
+[GitHub Push / PR]
+        │
+        ▼
+┌───────────────────────────────────────────┐
+│  GitHub Actions (.github/workflows/deploy.yml)  │
+│                                           │
+│  Job 1: Test (PR + push 공통)             │
+│    └── ./gradlew test                     │
+│                                           │
+│  Job 2: Deploy (main push 시에만)         │
+│    ├── Configure AWS credentials          │
+│    ├── Login to Amazon ECR                │
+│    ├── docker build & push (SHA 태그)     │
+│    └── SSH → EC2                          │
+│          ├── ECR 로그인                   │
+│          ├── docker pull (새 이미지)      │
+│          ├── 기존 컨테이너 교체           │
+│          └── docker image prune           │
+└───────────────────────────────────────────┘
+        │
+        ▼
+[EC2: bandmate 컨테이너 재시작]
+        │  JDBC (VPC 내부)
+        ▼
+[AWS RDS MySQL 8.0]
+  Flyway → 새 마이그레이션 자동 적용
+```
+
+### GitHub Actions Secrets 설정
+
+| Secret | 설명 |
+|--------|------|
+| `AWS_ACCESS_KEY_ID` | ECR 푸시 권한이 있는 IAM 키 |
+| `AWS_SECRET_ACCESS_KEY` | IAM 시크릿 키 |
+| `EC2_HOST` | EC2 퍼블릭 IP 또는 도메인 |
+| `EC2_SSH_KEY` | EC2 접속용 PEM 키 (-----BEGIN RSA PRIVATE KEY-----) |
+| `DB_HOST` | RDS 엔드포인트 |
+| `DB_USERNAME` | RDS 유저명 |
+| `DB_PASSWORD` | RDS 비밀번호 |
+| `JWT_SECRET` | JWT 서명 시크릿 (32자 이상) |
+
+---
+
 ## 프로젝트 구조
 
 ```
 bandmate/
+├── .github/workflows/deploy.yml    ← GitHub Actions CI/CD
 ├── src/main/java/com/bandmate/
 │   ├── common/
 │   │   ├── exception/         # GlobalExceptionHandler + 커스텀 예외
 │   │   └── util/JwtUtil.java
-│   ├── config/SecurityConfig.java
+│   ├── config/
+│   │   ├── SecurityConfig.java
+│   │   └── SwaggerConfig.java  # Swagger UI + JWT SecurityScheme
 │   ├── user/
 │   ├── band/                  # BandService (getMyBands, removeMember, ...)
 │   ├── song/                  # SongService (vote, autoSelect, reset, ...)
@@ -535,6 +614,11 @@ bandmate/
 │       ├── migration/
 │       │   └── V1__init_schema.sql    ← Flyway 관리 스키마
 │       └── schema.sql                 ← 참고용 DDL
+├── src/test/java/com/bandmate/
+│   ├── band/service/BandServiceTest.java
+│   ├── song/service/SongServiceTest.java
+│   ├── rehearsal/service/RehearsalServiceTest.java
+│   └── rehearsal/service/RehearsalServiceConcurrencyTest.java
 ├── frontend/                   # React + TypeScript + Vite
 │   ├── src/api/                # bands.ts, songs.ts, rehearsals.ts
 │   ├── src/pages/              # HomePage, BandDetailPage, ...
@@ -565,25 +649,31 @@ docker compose up -d --build
 # 프론트엔드 개발 서버
 cd frontend && npm install && npm run dev
 # → http://localhost:5173
+
+# Swagger UI
+# → http://localhost:8080/swagger-ui/index.html
 ```
 
 ---
 
 ## 배포
 
-### 아키텍처
+### 시스템 아키텍처
 
 ```
 [Browser]
     │  HTTP :80
     ▼
-[nginx]  ←── frontend/dist (React SPA)
-    │  /api/* 프록시
+[nginx (EC2)]  ←── frontend/dist (React SPA)
+    │  /api/* 역방향 프록시
     ▼
-[Spring Boot :8080]  ← Flyway 자동 마이그레이션
-    │  JDBC
+[Spring Boot :8080 (Docker, EC2)]
+    │  Flyway 자동 마이그레이션
+    │  JWT 인증
     ▼
-[MySQL 8.0]  ←── Docker 컨테이너 또는 AWS RDS
+[AWS RDS MySQL 8.0]
+    └── 자동 백업 7일 보존
+    └── VPC 내부 전용 (퍼블릭 액세스 비활성화)
 ```
 
 ---
@@ -591,7 +681,6 @@ cd frontend && npm install && npm run dev
 ### 옵션 A: Docker MySQL (EC2 단일 서버)
 
 ```bash
-# .env 파일 생성
 cat > .env << 'EOF'
 JWT_SECRET=배포용-시크릿키-32자-이상
 DB_USERNAME=bandmate
@@ -599,11 +688,7 @@ DB_PASSWORD=bandmate123
 MYSQL_ROOT_PASSWORD=root_change_me
 EOF
 
-# 실행
 docker compose -f docker-compose.prod.yml up -d --build
-
-# 자동 백업 설정 (S3 업로드)
-echo "S3_BUCKET=s3://your-bucket-name" >> .env
 bash scripts/setup-rds.sh   # cron 등록 + AWS CLI 설치
 ```
 
@@ -619,43 +704,25 @@ bash scripts/setup-rds.sh   # cron 등록 + AWS CLI 설치
 | 인스턴스 | db.t3.micro (Free Tier) |
 | 스토리지 | gp2 20GB |
 | **자동 백업** | **활성화, 보존 기간 7일** |
-| 다중 AZ | 운영 환경 권장 |
 | 퍼블릭 액세스 | 비활성화 (EC2 VPC 내부 통신) |
 
-#### 2. 보안 그룹 설정
-
-```
-RDS 보안 그룹 인바운드:
-  유형: MySQL/Aurora  포트: 3306  소스: EC2 보안 그룹 ID
-```
-
-#### 3. EC2에서 RDS로 배포
+#### 2. EC2에서 RDS로 배포
 
 ```bash
 cat > .env << 'EOF'
 JWT_SECRET=배포용-시크릿키-32자-이상
-DB_HOST=bandmate.xxxx.ap-northeast-2.rds.amazonaws.com   # RDS 엔드포인트
+DB_HOST=bandmate.xxxx.ap-northeast-2.rds.amazonaws.com
 DB_USERNAME=admin
 DB_PASSWORD=RDS_패스워드
 S3_BUCKET=s3://bandmate-backups
 EOF
 
-# RDS 전용 Compose 사용 (로컬 MySQL 컨테이너 없음)
 docker compose -f docker-compose.rds.yml up -d --build
-
-# 앱 시작 시 Flyway가 RDS에 V1 스키마 자동 생성
+# Flyway가 RDS에 V1 스키마 자동 생성
 docker compose -f docker-compose.rds.yml logs app | grep -i flyway
 ```
 
-#### 4. RDS 자동 백업 확인
-
-AWS Console → RDS → 인스턴스 선택 → **유지 관리 및 백업** 탭:
-- 자동 백업: 활성화됨
-- 보존 기간: 7일
-- 백업 시간대: 새벽 (UTC 기준)
-- 특정 시점으로 복구(PITR): 지원됨
-
-#### 5. mysqldump S3 백업 (추가 보장)
+#### 3. mysqldump S3 백업 (추가 보장)
 
 ```bash
 bash scripts/setup-rds.sh
@@ -667,7 +734,67 @@ bash scripts/setup-rds.sh
 ### 업데이트 배포
 
 ```bash
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
-# Flyway가 새 마이그레이션(V2, V3 ...) 자동 적용 후 앱 시작
+git push origin main
+# GitHub Actions가 자동으로: 테스트 → ECR 빌드 → EC2 배포 → Flyway 마이그레이션
 ```
+
+---
+
+## 트러블슈팅
+
+### 1. 동시성 — 비관적 락 없이 정원 초과 발생
+
+**증상:** 정원 5명인 합주에 6~7명이 동시 신청 성공  
+**원인:** `currentCount` 읽기와 쓰기 사이에 다른 트랜잭션이 개입  
+**해결:** `SELECT FOR UPDATE`로 해당 row를 트랜잭션 종료까지 잠금  
+
+```java
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+@Query("SELECT r FROM Rehearsal r WHERE r.id = :id")
+Optional<Rehearsal> findByIdWithLock(@Param("id") Long id);
+```
+
+`RehearsalServiceConcurrencyTest`에서 30개 스레드 동시 신청 시 정확히 maxCapacity만 성공함을 검증합니다.
+
+---
+
+### 2. Flyway — 기존 DB에 적용 시 `Found non-empty schema` 오류
+
+**증상:** `Flyway migrate` 시작 시 `Found non-empty schema ... without schema history table` 오류  
+**원인:** 이미 테이블이 존재하는 DB에 Flyway를 처음 적용할 때 발생  
+**해결:**
+
+```yaml
+spring:
+  flyway:
+    baseline-on-migrate: true  # 현재 상태를 V0 베이스라인으로 기록
+    baseline-version: 0        # V1부터 새로 적용
+```
+
+V1 SQL은 `CREATE TABLE IF NOT EXISTS`로 작성되어 기존 테이블이 있으면 건너뜁니다.
+
+---
+
+### 3. RDS 연결 — EC2에서 RDS endpoint 연결 실패
+
+**증상:** `Communications link failure` 또는 connection timeout  
+**체크리스트:**
+
+1. RDS 보안 그룹 인바운드 — 포트 3306, 소스: **EC2 보안 그룹 ID** (IP 아닌 SG ID)
+2. EC2와 RDS가 동일 **VPC** 안에 있는지 확인
+3. RDS `Publicly Accessible` = **No** (VPC 내부 전용)
+4. `application-prod.yml`의 `DB_HOST`가 RDS 엔드포인트 (`.rds.amazonaws.com`)인지 확인
+
+```bash
+# EC2에서 직접 연결 테스트
+mysql -h $DB_HOST -u $DB_USERNAME -p$DB_PASSWORD -e "SELECT 1;"
+```
+
+---
+
+### 4. Swagger — IDE에서 `io.swagger` 패키지 오류
+
+**증상:** IntelliJ 또는 VSCode에서 `import io.swagger.v3.oas.annotations.*` 빨간 밑줄  
+**원인:** `springdoc-openapi-starter-webmvc-ui:2.8.8` 의존성이 IDE에 아직 로드되지 않음  
+**해결:** `./gradlew dependencies` 또는 IDE의 Gradle 프로젝트 새로고침 실행  
+컴파일/빌드(`./gradlew build`)는 정상 동작합니다.

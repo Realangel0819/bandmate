@@ -5,7 +5,10 @@ import com.bandmate.band.entity.BandMember;
 import com.bandmate.band.entity.Position;
 import com.bandmate.band.repository.BandMemberRepository;
 import com.bandmate.band.repository.BandRepository;
+import com.bandmate.common.exception.CapacityExceededException;
 import com.bandmate.rehearsal.dto.AttendanceResponse;
+import com.bandmate.user.entity.User;
+import com.bandmate.user.repository.UserRepository;
 import com.bandmate.rehearsal.dto.CreateRehearsalRequest;
 import com.bandmate.rehearsal.dto.RehearsalResponse;
 import com.bandmate.rehearsal.entity.Rehearsal;
@@ -35,6 +38,7 @@ class RehearsalServiceTest {
     @Mock private RehearsalAttendanceRepository attendanceRepository;
     @Mock private BandRepository bandRepository;
     @Mock private BandMemberRepository bandMemberRepository;
+    @Mock private UserRepository userRepository;
 
     @InjectMocks
     private RehearsalService rehearsalService;
@@ -63,7 +67,7 @@ class RehearsalServiceTest {
 
         assertThat(response.getTitle()).isEqualTo("주간 합주");
         assertThat(response.getMaxCapacity()).isEqualTo(5);
-        assertThat(response.getCurrentCount()).isEqualTo(0);
+        assertThat(response.getCurrentAttendees()).isEqualTo(0);
     }
 
     @Test
@@ -125,7 +129,7 @@ class RehearsalServiceTest {
         given(attendanceRepository.findByRehearsalIdAndUserId(rehearsalId, userId)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> rehearsalService.joinRehearsal(bandId, rehearsalId, userId))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(CapacityExceededException.class)
                 .hasMessage("정원이 초과되었습니다.");
     }
 

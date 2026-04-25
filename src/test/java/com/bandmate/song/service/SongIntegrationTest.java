@@ -5,6 +5,7 @@ import com.bandmate.band.entity.BandMember;
 import com.bandmate.band.entity.Position;
 import com.bandmate.band.repository.BandMemberRepository;
 import com.bandmate.band.repository.BandRepository;
+import com.bandmate.common.exception.AlreadyVotedException;
 import com.bandmate.song.dto.*;
 import com.bandmate.song.entity.BandSong;
 import com.bandmate.song.entity.Song;
@@ -27,19 +28,15 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * H2 in-memory DB를 사용하는 공연곡 선정 통합 테스트.
- * @Transactional → 각 테스트 후 자동 롤백.
- */
 @SpringBootTest
 @Transactional
 class SongIntegrationTest {
 
     @Autowired private SongService songService;
+    @Autowired private BandRepository bandRepository;
     @Autowired private SongRepository songRepository;
     @Autowired private BandSongRepository bandSongRepository;
     @Autowired private SongVoteRepository songVoteRepository;
-    @Autowired private BandRepository bandRepository;
     @Autowired private BandMemberRepository bandMemberRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private PasswordEncoder passwordEncoder;
@@ -54,26 +51,25 @@ class SongIntegrationTest {
         User leader = userRepository.save(User.builder()
                 .email("song_leader_" + System.nanoTime() + "@test.com")
                 .password(passwordEncoder.encode("pass"))
-                .nickname("리더").build());
+                .nickname("리더" + System.nanoTime()).build());
         leaderId = leader.getId();
 
         User m1 = userRepository.save(User.builder()
                 .email("song_m1_" + System.nanoTime() + "@test.com")
                 .password(passwordEncoder.encode("pass"))
-                .nickname("멤버1").build());
+                .nickname("멤버1" + System.nanoTime()).build());
         member1Id = m1.getId();
 
         User m2 = userRepository.save(User.builder()
                 .email("song_m2_" + System.nanoTime() + "@test.com")
                 .password(passwordEncoder.encode("pass"))
-                .nickname("멤버2").build());
+                .nickname("멤버2" + System.nanoTime()).build());
         member2Id = m2.getId();
 
         Band band = bandRepository.save(Band.builder()
                 .name("SongTestBand").description("").leaderId(leaderId).build());
         bandId = band.getId();
 
-        // 멤버 등록
         bandMemberRepository.save(BandMember.builder().bandId(bandId).userId(leaderId).position(Position.VOCAL).build());
         bandMemberRepository.save(BandMember.builder().bandId(bandId).userId(member1Id).position(Position.GUITAR).build());
         bandMemberRepository.save(BandMember.builder().bandId(bandId).userId(member2Id).position(Position.DRUM).build());
@@ -97,13 +93,11 @@ class SongIntegrationTest {
     @Test
     @DisplayName("곡 후보 등록 → 투표 → voteCount 증가 확인")
     void addCandidate_andVote_voteCountIncreases() {
-        // 곡 등록
         CreateSongRequest songReq = new CreateSongRequest();
         songReq.setTitle("Under Pressure");
         songReq.setArtist("Queen");
         Song song = songService.createSong(songReq);
 
-        // 후보 등록 (투표 기간: 과거 ~ 미래)
         LocalDateTime now = LocalDateTime.now();
         AddSongCandidateRequest candidateReq = new AddSongCandidateRequest();
         candidateReq.setSongId(song.getId());
@@ -114,25 +108,27 @@ class SongIntegrationTest {
         assertThat(candidate.getVoteCount()).isEqualTo(0);
         assertThat(candidate.getIsVotingActive()).isTrue();
 
-        // 멤버1 투표
         VoteRequest voteReq = new VoteRequest();
-        voteReq.setBandSongId(candidate.getId());
+        voteReq.setBandSongId(candidate.getBandSongId());
         VoteResponse vote1 = songService.vote(bandId, voteReq, member1Id);
         assertThat(vote1.getMessage()).isEqualTo("투표가 완료되었습니다.");
 
-        // 멤버2 투표
         VoteResponse vote2 = songService.vote(bandId, voteReq, member2Id);
         assertThat(vote2.getMessage()).isEqualTo("투표가 완료되었습니다.");
 
-        // DB에서 voteCount 확인
-        BandSong bandSong = bandSongRepository.findById(candidate.getId()).orElseThrow();
+        BandSong bandSong = bandSongRepository.findById(candidate.getBandSongId()).orElseThrow();
         assertThat(bandSong.getVoteCount()).isEqualTo(2);
-        assertThat(songVoteRepository.countByBandSongId(candidate.getId())).isEqualTo(2);
+        assertThat(songVoteRepository.countByBandSongId(candidate.getBandSongId())).isEqualTo(2);
     }
 
     @Test
     @DisplayName("중복 투표 방지 (DB 고유 제약 검증)")
     void vote_duplicatePrevented_withDb() {
+        // maxVotesPerPerson=1이면 두 번째 시도에서 "횟수 초과"가 먼저 발동하므로 3으로 설정
+        Band band = bandRepository.findById(bandId).orElseThrow();
+        band.setMaxVotesPerPerson(3);
+        bandRepository.save(band);
+
         CreateSongRequest songReq = new CreateSongRequest();
         songReq.setTitle("We Will Rock You");
         songReq.setArtist("Queen");
@@ -146,26 +142,23 @@ class SongIntegrationTest {
         BandSongResponse candidate = songService.addSongCandidate(bandId, candidateReq, leaderId);
 
         VoteRequest voteReq = new VoteRequest();
-        voteReq.setBandSongId(candidate.getId());
+        voteReq.setBandSongId(candidate.getBandSongId());
 
-        // 첫 번째 투표 성공
         songService.vote(bandId, voteReq, member1Id);
 
-        // 두 번째 투표 실패 (서비스 레벨 중복 방지)
         assertThatThrownBy(() -> songService.vote(bandId, voteReq, member1Id))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("이미 투표했습니다.");
+                .isInstanceOf(AlreadyVotedException.class)
+                .hasMessage("이 곡에 이미 투표했습니다.");
     }
 
     @Test
-    @DisplayName("투표 종료 후 곡 선정 → isSelected=true, selectedSong 조회 가능")
-    void selectWinningSong_marksSelectedAndQueryable() {
+    @DisplayName("투표 종료 후 곡 선정 → isSelected=true, 선정 목록에서 조회 가능")
+    void selectSong_marksSelectedAndQueryable() {
         CreateSongRequest songReq = new CreateSongRequest();
         songReq.setTitle("Radio Ga Ga");
         songReq.setArtist("Queen");
         Song song = songService.createSong(songReq);
 
-        // 투표 기간: 이미 종료
         LocalDateTime now = LocalDateTime.now();
         AddSongCandidateRequest candidateReq = new AddSongCandidateRequest();
         candidateReq.setSongId(song.getId());
@@ -173,20 +166,19 @@ class SongIntegrationTest {
         candidateReq.setVoteEndDate(now.minusDays(1));
         BandSongResponse candidate = songService.addSongCandidate(bandId, candidateReq, leaderId);
 
-        // 곡 선정
-        BandSongResponse selected = songService.selectWinningSong(bandId, candidate.getId());
+        BandSongResponse selected = songService.selectSong(bandId, candidate.getBandSongId());
 
         assertThat(selected.getIsSelected()).isTrue();
         assertThat(selected.getTitle()).isEqualTo("Radio Ga Ga");
 
-        // getSelectedSong 조회 가능
-        BandSongResponse found = songService.getSelectedSong(bandId);
-        assertThat(found.getId()).isEqualTo(candidate.getId());
+        List<BandSongResponse> selectedSongs = songService.getSelectedSongs(bandId);
+        assertThat(selectedSongs).hasSize(1);
+        assertThat(selectedSongs.get(0).getBandSongId()).isEqualTo(candidate.getBandSongId());
     }
 
     @Test
-    @DisplayName("활성 후보곡 조회 - 선정된 곡 제외")
-    void getActiveCandidates_excludesSelected() {
+    @DisplayName("선정된 곡을 제외한 후보곡 조회")
+    void getBandSongs_excludesSelectedWhenFiltered() {
         LocalDateTime now = LocalDateTime.now();
 
         // 곡 A: 활성 후보
@@ -200,7 +192,7 @@ class SongIntegrationTest {
         candA.setVoteEndDate(now.plusDays(3));
         songService.addSongCandidate(bandId, candA, leaderId);
 
-        // 곡 B: 투표 종료 후 선정
+        // 곡 B: 선정 완료
         CreateSongRequest reqB = new CreateSongRequest();
         reqB.setTitle("Song B");
         reqB.setArtist("Artist B");
@@ -210,18 +202,19 @@ class SongIntegrationTest {
         candB.setVoteStartDate(now.minusDays(5));
         candB.setVoteEndDate(now.minusDays(1));
         BandSongResponse candidateB = songService.addSongCandidate(bandId, candB, leaderId);
-        songService.selectWinningSong(bandId, candidateB.getId());
+        songService.selectSong(bandId, candidateB.getBandSongId());
 
-        // 활성 후보 조회: 선정된 곡(B)은 제외, A만 포함
-        List<BandSongResponse> active = songService.getActiveCandidates(bandId);
-        assertThat(active).hasSize(1);
-        assertThat(active.get(0).getTitle()).isEqualTo("Song A");
+        List<BandSongResponse> selected = songService.getSelectedSongs(bandId);
+        assertThat(selected).hasSize(1);
+        assertThat(selected.get(0).getTitle()).isEqualTo("Song B");
+
+        List<BandSongResponse> all = songService.getBandSongs(bandId);
+        assertThat(all).hasSize(2);
     }
 
     @Test
     @DisplayName("모든 멤버가 투표하면 최다 득표 곡 자동 선정 (DB 검증)")
     void vote_autoSelectWhenAllMembersVoted_withDb() {
-        // 밴드 멤버: leader + member1 + member2 = 총 3명
         CreateSongRequest songReq = new CreateSongRequest();
         songReq.setTitle("Auto Selected Song");
         songReq.setArtist("Queen");
@@ -234,9 +227,8 @@ class SongIntegrationTest {
         candidateReq.setVoteEndDate(now.plusDays(3));
         BandSongResponse candidate = songService.addSongCandidate(bandId, candidateReq, leaderId);
 
-        // 멤버1, 멤버2 투표 → 아직 leader 미투표 상태
         VoteRequest voteReq = new VoteRequest();
-        voteReq.setBandSongId(candidate.getId());
+        voteReq.setBandSongId(candidate.getBandSongId());
 
         VoteResponse v1 = songService.vote(bandId, voteReq, member1Id);
         assertThat(v1.getMessage()).isEqualTo("투표가 완료되었습니다.");
@@ -245,20 +237,18 @@ class SongIntegrationTest {
         assertThat(v2.getMessage()).isEqualTo("투표가 완료되었습니다.");
 
         // 아직 자동 선정 안 됨 (3명 중 2명만 투표)
-        BandSong notYet = bandSongRepository.findById(candidate.getId()).orElseThrow();
+        BandSong notYet = bandSongRepository.findById(candidate.getBandSongId()).orElseThrow();
         assertThat(notYet.getIsSelected()).isFalse();
 
         // 리더(마지막 멤버) 투표 → 전원 투표 완료 → 자동 선정
         VoteResponse v3 = songService.vote(bandId, voteReq, leaderId);
         assertThat(v3.getMessage()).contains("자동으로 선정되었습니다");
 
-        // DB에서 isSelected = true 확인
-        BandSong autoSelected = bandSongRepository.findById(candidate.getId()).orElseThrow();
+        BandSong autoSelected = bandSongRepository.findById(candidate.getBandSongId()).orElseThrow();
         assertThat(autoSelected.getIsSelected()).isTrue();
 
-        // getSelectedSong으로도 조회 가능
-        BandSongResponse selectedSong = songService.getSelectedSong(bandId);
-        assertThat(selectedSong.getTitle()).isEqualTo("Auto Selected Song");
+        List<BandSongResponse> selectedSongs = songService.getSelectedSongs(bandId);
+        assertThat(selectedSongs).hasSize(1);
+        assertThat(selectedSongs.get(0).getTitle()).isEqualTo("Auto Selected Song");
     }
-
 }
